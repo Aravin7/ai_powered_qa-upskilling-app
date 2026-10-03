@@ -1,0 +1,3 @@
+'use client';
+import { signIn } from 'next-auth/react';
+export function LoginButton(){return <button className="button primary" onClick={()=>void signIn('google',{callbackUrl:'/'})}><svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.8 12.2c0-.7-.1-1.4-.2-2.1H12v4h5.5a4.7 4.7 0 0 1-2 3.1v2.6h3.2c1.9-1.8 3.1-4.4 3.1-7.6ZM12 22c2.7 0 5-.9 6.7-2.4l-3.2-2.5c-.9.6-2.1 1-3.5 1-2.7 0-5-1.9-5.8-4.4H2.9v2.6A10 10 0 0 0 12 22ZM6.2 13.7a6 6 0 0 1 0-3.4V7.7H2.9a10 10 0 0 0 0 8.6l3.3-2.6ZM12 5.9c1.5 0 2.8.5 3.8 1.5l2.9-2.9A9.6 9.6 0 0 0 12 2a10 10 0 0 0-9.1 5.7l3.3 2.6C7 7.8 9.3 5.9 12 5.9Z"/></svg>Continue with Google</button>;}

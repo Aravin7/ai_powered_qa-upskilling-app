@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client"
+  output = "../src/generated/prisma"
+}
+datasource db {
+  provider = "postgresql"
+}
+model Invitation {
+  email String @id
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model User {
+  id String @id @default(uuid())
+  googleSubject String @unique
+  email String @unique
+  name String
+  status String @default("active")
+  sessionVersion Int @default(0)
+  createdAt DateTime @default(now())
+  profile Profile?
+  skills ConfirmedSkill[]
+  consents Consent[]
+  roadmaps Roadmap[]
+}
+model Profile {
+  userId String @id
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  currentRole String @default("")
+  yearsExperience Int @default(0)
+  hoursPerWeek Int @default(5)
+  confirmed Boolean @default(false)
+  inventoryConfirmed Boolean @default(false)
+  planningRevision Int @default(0)
+}
+model ConfirmedSkill {
+  id String @id @default(uuid())
+  userId String
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  key String
+  canonicalSkillId String?
+  label String
+  source String @default("manual")
+  catalogueVersion String
+  confirmedAt DateTime @default(now())
+  @@unique([userId, key])
+}
+model Consent {
+  id String @id @default(uuid())
+  sequence Int @unique @default(autoincrement())
+  userId String
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  purpose String
+  granted Boolean
+  policyVersion String
+  recordedAt DateTime @default(now())
+  @@index([userId, purpose, recordedAt])
+}
+model Roadmap {
+  id String @id @default(uuid())
+  userId String
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  status String @default("active")
+  inputRevision Int
+  catalogueVersion String
+  createdAt DateTime @default(now())
+  tasks RoadmapTask[]
+  @@index([userId, status])
+}
+model RoadmapTask {
+  id String @id @default(uuid())
+  roadmapId String
+  roadmap Roadmap @relation(fields:[roadmapId], references:[id], onDelete:Cascade)
+  position Int
+  week Int
+  title String
+  activity String
+  completionCriterion String
+  kind String
+  skillIds String[]
+  resourceIds String[]
+  estimatedMinutes Int
+  completed Boolean @default(false)
+  revision Int @default(0)
+  @@unique([roadmapId, position])
+}
