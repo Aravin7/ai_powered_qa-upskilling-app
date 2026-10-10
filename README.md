@@ -112,7 +112,7 @@ $env:E2E_PORT="31347" # any free local port; keeps an existing app server untouc
 npm run test:e2e
 ```
 
-The test runner creates temporary secrets, synthetic invited records, mock budget and an Auth.js-signed test session. It starts its own dev server against the test database in an ignored `.next-e2e` directory, exercises the real private API, and cleans its fixture records. This **does not verify Google OAuth success**. Do not point it at a valued application database. The expanded scenario matrix and observed defects are in `docs/QA-AUTOMATION-REPORT.md`. Run `npm run test:known-defects` separately to reproduce the remaining name-redaction defect; this command intentionally exits nonzero.
+The test runner creates temporary secrets, synthetic invited records, mock budget and an Auth.js-signed test session. It starts its own dev server against the test database in an ignored `.next-e2e` directory, exercises the real private API, and cleans its fixture records. This **does not verify Google OAuth success**. Do not point it at a valued application database. The expanded scenario matrix and observed defects are in `docs/QA-AUTOMATION-REPORT.md`. The corrected name-redaction regressions are included in `npm test`; its single worker avoids overlapping real parser processes while preserving application deadlines.
 
 The integration command deliberately fails with `BLOCKED` if `TEST_DATABASE_URL` is missing. It never silently substitutes the application database. Tests create unique synthetic identities and clean up only their own records. See `docs/BUILD-STATUS.md` for observed results and limitations.
 

@@ -37,6 +37,12 @@ For a material change record actual date, decision, rationale/alternative, appro
 
 Historical warnings: the original transcript ends before Q10 is answered; older eight-role/quizzes/rebranding/admin requirements are superseded. Earlier validators silently clamped work/weeks, sliced to twelve tasks, omitted invoked auth/consent/quota/token caps and failed validation retries; do not reuse those handlers.
 
+## CV minimization correction — 10 October 2026
+
+- R04/T04, DEF-02: replace global name-substring removal with case-insensitive whole-identifier removal. Full identities are removed first; an individual name token within an exact catalogue skill phrase is retained so a name containing `API` does not erase `API testing`. Contact/header filtering remains in effect; this pattern-based minimizer still cannot guarantee anonymity.
+- The former known-defect case and a full-name/token/subword regression now run in the normal unit suite. The unit runner uses one worker after a concurrent cold parser test reached the unchanged eight-second application deadline; the sequential full run passed all 89 cases. No retry or deadline relaxation was introduced.
+- No requirements, database schema, provider approval or deployment configuration changed.
+
 ## Initial build — 3 October 2026
 
 - Pinned Next.js 16.3.8 after verification from the official release and npm registry. Stable NextAuth 4.24.15 explicitly permits Next.js 16 and React 19 in its peer constraints; Prisma 7.10.0 uses the PostgreSQL driver adapter. No beta ORM selected.

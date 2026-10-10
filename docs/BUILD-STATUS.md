@@ -8,7 +8,20 @@ The user selected Google Gemini Flash Latest (`gemini-flash-latest`) for explora
 
 The five-attempt rolling-hour guard had been commented out in the working copy, conflicting with `specs.md` R11. The user asked to restore it; the guard is now active again. Two targeted quota cases passed against the isolated real PostgreSQL fixture, including cross-feature accounting. This preparation is **not** live AI integration evidence.
 
-## QA automation follow-on — 10 October 2026
+## Merge-preparation verification — 10 October 2026
+
+Tested base commit `4f7292743be7c945ae61cdb3f4a2e9bf3a181c2d` plus the uncommitted DEF-02 correction in `src/lib/ai-output.ts`, normal-suite minimization regressions and single-worker unit command. Documentation edits do not change tested behavior. Windows/Node 24.19.0, isolated PostgreSQL 18.4 at localhost port 55437 (`qa_week3`), Chrome and separate E2E port 31347; no personal database reset, external AI request or deployment.
+
+- **89 unit/parser/Gemini-adapter PASS** across five files, including two CV minimization regressions and intercepted provider transport tests. The initial concurrent run had 88 passes and one real-PDF timeout at the unchanged eight-second parser deadline; the complete sequential run passed. The unit command now uses one worker, with no retry or deadline relaxation.
+- **40 PostgreSQL integration PASS** in the complete `npm run test:integration -- --maxWorkers=1` run, including the three Week 3 examples below and two-client concurrency controls.
+- **9 Playwright PASS** in the complete authenticated/mock browser run (2.5 minutes), including onboarding, PDF confirmation, plan/progress persistence, fallback, ownership and stale writes. Auth.js sessions are synthetic; Google OAuth and live Gemini remain unverified.
+- **Typecheck, full lint and catalogue validation PASS**. The eight-skill catalogue remains synthetic and `reviewed:false`.
+- **Production build PASS**: Prisma generation, Next.js compilation, TypeScript, page generation and optimization completed. This is a local build, not deployment evidence.
+- **DEF-02 corrected:** whole known identities are removed first; individual name tokens use whole-word matching and are preserved inside exact catalogue skill phrases. Full identities and case variants are still removed; unrelated longer words are preserved. Pattern-based minimization still cannot guarantee anonymity.
+
+These 138 automated passes verify the local synthetic/mock slice, not complete T01–T14 coverage or production admission. Open live-provider, reviewed-content, deployment, measurement and professional-review gates remain as recorded in the coverage matrix.
+
+## Earlier QA automation follow-on — 10 October 2026
 
 The requirement-to-test matrix, per-scenario setup/action/expected/actual notes, defects and run instructions are in `QA-AUTOMATION-REPORT.md`. Baseline commit `457afd301de5e3603c998941e8b023d6a4c8bad5`; the checks below ran against the then-uncommitted Week 3 implementation and test expansion. This test branch preserved the pre-existing worktree. No production/personal database was reset, and no paid AI request or deployment occurred. Branch publication was requested after this verification checkpoint.
 
@@ -16,10 +29,10 @@ The requirement-to-test matrix, per-scenario setup/action/expected/actual notes,
 - **81 unit/parser PASS** in the final complete run after this correction, including the new positive PDF and negative aspiration cases, real synthetic encrypted/image-only/mixed-page/boundary fixtures, output validation and roadmap checks. Sandbox-only temporary cache and child-process startup failures did not reproduce in the successful normal local run; application deadlines were not changed.
 - **40 PostgreSQL integration PASS** in one full run against the isolated migrated PostgreSQL 18.4 fixture. New cases cover purpose-specific consent, revoked in-flight CV evidence, invalid-then-valid and refusal paths, actual provider timeout, edited/forged origins, input minimization, no-op planning revision, stale skill edits, empty-inventory acknowledgment, deliberate retry, deletion during provider work, and quota/funding shared across CV and roadmap.
 - **9 Playwright PASS** in one complete Chrome run on a separate port and `.next-e2e` build directory. The connected journey was then expanded to save an initially unconfirmed profile through the UI; that changed journey passed separately, and the other eight were unchanged. Synthetic Auth.js sessions exercised private APIs; real Google OAuth was not automated. Failure traces/screenshots use ignored `test-results/`.
-- **1 known-defect test FAIL** in the separate `npm run test:known-defects` command. DEF-02: known-name token removal can erase an unrelated `API testing` phrase. Manual skill review remains available. The earlier DEF-01 failure is now a passing unit regression.
+- **1 known-defect test FAIL at that checkpoint** in the former `npm run test:known-defects` command. DEF-02 was subsequently corrected and moved into the normal suite as recorded above. The earlier DEF-01 failure is also a passing unit regression.
 - An earlier full browser run had seven passes, a generic upload `SERVICE_UNAVAILABLE` response and a cold demo interaction timeout. The connected journey then passed alone and all nine passed in the final run. The generic 503 has no confirmed root cause and remains a local reliability observation; no assertion or product deadline was relaxed. The test runner now uses a distinct port/build directory and gives cold development compilation its own allowance.
 
-The **81 current unit passes** and **40 integration plus 9 browser passes from before the correction** total 130 observed local synthetic/mock cases across the two source revisions. The integration and browser suites were not rerun after DEF-01; do not treat 130 as a single current full-suite run or complete T01–T14 coverage. Reviewed catalogue publication, real Google OAuth, live AI, deployment/runtime, professional semantic assessment, provider/backup retention and T13 evaluation remain blocked or not run as detailed in the matrix. The three Week 3 expected/actual cases below passed in the earlier complete integration run.
+At that earlier checkpoint, 81 unit passes and 40 integration plus nine browser passes totaled 130 cases across two source revisions. The merge-preparation run above supersedes those totals and reruns all three suites after DEF-01/DEF-02. Reviewed catalogue publication, real Google OAuth, live AI, deployment/runtime, professional semantic assessment, provider/backup retention and T13 evaluation remain blocked or not run as detailed in the matrix. The three Week 3 expected/actual cases below also passed in the current complete integration run.
 
 ## Implemented behavior
 

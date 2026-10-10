@@ -18,7 +18,16 @@ export function supportsCatalogueSkill(line:string,skill:{id:string;label:string
 export function minimizeText(text:string,identifiers:string[]){
  let cleaned=text.replace(/^[^\n]*(?:@|https?:\/\/|www\.|linkedin|\baddress\b|\bphone\b|\bcontact\b|\bstreet\b|\bpostal\b)[^\n]*$/gim,'');
  cleaned=cleaned.replace(/\+?\d[\d ()-]{7,}\d/g,'[removed]');
- for(const identifier of identifiers.filter(Boolean))cleaned=cleaned.split(identifier).join('[removed]');
+ const escape=(value:string)=>value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+ const bounded=(value:string)=>new RegExp(`(?<![\\p{L}\\p{N}])${escape(value)}(?![\\p{L}\\p{N}])`,'giu');
+ // Remove full identities first. Individual name tokens may also be skill terms;
+ // preserve those only inside an exact catalogue phrase, never inside a full name.
+ for(const identifier of [...new Set(identifiers.map(value=>value.trim()).filter(Boolean))].sort((a,b)=>b.length-a.length)){
+  const skillRanges=/\s/.test(identifier)?[]:catalogue.skills.flatMap(skill=>[skill.label,...skill.aliases].flatMap(label=>
+   [...cleaned.matchAll(bounded(label))].map(match=>({start:match.index,end:match.index+match[0].length}))));
+  cleaned=cleaned.replace(bounded(identifier),(match:string,offset:number)=>
+   skillRanges.some(range=>offset>=range.start&&offset+match.length<=range.end)?match:'[removed]');
+ }
  // Local synthetic profile accepts only task-evidence lines. Discard the contact/header block.
  let excluded=false;
  return cleaned.split('\n').filter(line=>{

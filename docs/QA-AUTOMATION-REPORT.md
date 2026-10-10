@@ -4,7 +4,21 @@ Baseline commit `457afd301de5e3603c998941e8b023d6a4c8bad5`; working branch `code
 
 The expected behavior is `specs.md` sections 1–2 and its T01–T14 matrix. Tests use synthetic data, the real Node `pdf-parse` child process, a separate migrated PostgreSQL 18.4 database, and a server-side mock `AIProvider`. Playwright authenticates with a synthetic signed Auth.js session only in the isolated test runner; it does not verify Google OAuth. `.env` credentials are not used as test credentials. Browser traces/screenshots are retained on failure under ignored `test-results/`.
 
-## Execution and evidence
+## Current merge-preparation execution — 10 October 2026
+
+Base commit `4f7292743be7c945ae61cdb3f4a2e9bf3a181c2d` plus uncommitted DEF-02 source correction, `tests/cv-minimization.test.ts`, package test command and documentation. Same Windows/Node 24.19.0 environment, isolated PostgreSQL 18.4 (`qa_week3`, port 55437), and Chrome; no personal database reset, live AI request or deployment.
+
+| Command | Actual result |
+| --- | --- |
+| `npm test -- --maxWorkers=1` | **89 Passed**, five files, 13.62 seconds. The default unit command now uses one worker. Initial concurrent run: 88 Passed / one Failed, real-PDF cold timeout at eight seconds; no retry or deadline relaxation. |
+| `npm run test:integration -- --maxWorkers=1` with isolated `TEST_DATABASE_URL` | **40 Passed**, three files, 71.65 seconds; real database transactions and two-client races. |
+| `npm run test:e2e` with isolated DB, `RUN_AUTHENTICATED_E2E=true`, port 31347, local Chrome | **9 Passed**, 2.5 minutes, including the complete onboarding/PDF/confirmation/roadmap/progress/fallback journey. |
+| Typecheck / full lint / catalogue validation | **Passed**; synthetic catalogue remains `reviewed:false`. |
+| `npm run build` | **Passed**: Prisma generation, production compilation, TypeScript, page generation and optimization; no deployment. |
+
+DEF-02 is corrected; its former failure and the additional full-name/token/subword case now pass in the regular suite. All 138 automated passes use synthetic data and mocked/intercepted provider responses. Remaining **Blocked** and **Not run** cases in the matrix and boundaries remain open; this is not complete requirement coverage.
+
+## Earlier execution and evidence
 
 | Command / environment | Actual result |
 | --- | --- |
@@ -12,24 +26,24 @@ The expected behavior is `specs.md` sections 1–2 and its T01–T14 matrix. Tes
 | `TEST_DATABASE_URL=<isolated migrated DB> npm run test:integration` | **40 passed**, three files, real PostgreSQL and two-client races. |
 | `TEST_DATABASE_URL=<isolated migrated DB> RUN_AUTHENTICATED_E2E=true E2E_PORT=31347 npm run test:e2e` | **9 passed** in one complete Chrome run (2.0 minutes). After that, the connected test was expanded to begin with unconfirmed profile onboarding; this changed test passed alone (1.0 minute), while the other eight were unchanged. Separate port and `.next-e2e` avoided the user's running development server. An earlier full run had seven passes, a transient generic upload 503, and a cold demo interaction timeout. The transient 503 remains a reliability observation. |
 | `npm run typecheck` / `npm run lint` / `npm run catalogue:validate` | **Passed** on final source. Catalogue validates structurally as eight synthetic skills with `reviewed:false`; this is not professional content approval. |
-| `npm run test:known-defects` | **1 failed** (DEF-02). The corrected DEF-01 PDF case moved into the passing unit suite. |
+| Former `npm run test:known-defects` at earlier checkpoint | **1 failed** (DEF-02) before its correction. The regression is now part of `npm test`. |
 
-Test file keys: **U** = `tests/qa-coverage.test.ts`; **I** = `tests/integration/qa-coverage.test.ts`; **B** = `tests/e2e/qa-api.spec.ts`; **K** = `tests/known-defects/cv-test-design.test.ts`. Existing evidence: **EU** = `tests/unit.test.ts` and `tests/ai.test.ts`; **EI** = `tests/integration/ai.test.ts` and `tests/integration/store.test.ts`; **EB** = `tests/e2e/connected.spec.ts` and `tests/e2e/workspace.spec.ts`. Each separately named test contains its exact synthetic setup, action and retrying assertion. The table maps those executable variations to requirements and observed outcomes. “Partial” means the listed variation ran but the entire group did not.
+Test file keys: **U** = `tests/qa-coverage.test.ts`; **I** = `tests/integration/qa-coverage.test.ts`; **B** = `tests/e2e/qa-api.spec.ts`; **K** = `tests/cv-minimization.test.ts`. Existing evidence: **EU** = `tests/unit.test.ts` and `tests/ai.test.ts`; **EI** = `tests/integration/ai.test.ts` and `tests/integration/store.test.ts`; **EB** = `tests/e2e/connected.spec.ts` and `tests/e2e/workspace.spec.ts`. Each separately named test contains its exact synthetic setup, action and retrying assertion. The table maps those executable variations to requirements and observed outcomes. “Partial” means the listed variation ran but the entire group did not.
 
 ## Requirement-to-test matrix
 
 | Group; requirement | Preconditions / synthetic data; action | Observable expected result | Actual status and evidence / remaining boundary |
 | --- | --- | --- | --- |
-| CV-01; US04–05, R04–05, T04–05 | EI W3-1 and EB connected: readable text PDF, consent; extract, reload, confirm. U CV-01d parses a synthetic PDF with concrete boundary/negative test-design wording. | Supported candidates appear only for review; inventory changes on confirmation and survives reload. | **Passed local mock:** U CV-01d now returns test design, API testing and automation; prior EI/EB exact-label cases passed before this correction. Full browser/database suites were not rerun after it. |
+| CV-01; US04–05, R04–05, T04–05 | EI W3-1 and EB connected: readable text PDF, consent; extract, reload, confirm. U CV-01d parses a synthetic PDF with concrete boundary/negative test-design wording. | Supported candidates appear only for review; inventory changes on confirmation and survives reload. | **Passed local mock:** U CV-01d returns test design, API testing and automation; complete browser/database suites passed after the corrections. |
 | CV-02a–g; US04, R04–05, T04 | U: separate affirmative, negated, aspiration, quoted requirement and embedded-instruction strings; parse/validate. | Only affirmative evidence produces candidates; instructions cannot redirect processing. | **Passed** named U variations, including the new test-design aspiration rejection. No live model prompt-injection claim. |
 | CV-03a–h; US04, R04, T04, D02 | U: unsupported bytes, corrupt header, encrypted fixture, 2 MiB exact/+1, 10/+1 pages, >20k text; invoke real parser. EI W3-2 verifies zero attempt on malformed input. | Controlled PDF codes, no truncation; malformed pre-dispatch rejection preserves inventory. | **Passed** parser boundaries and W3-2. Native process RSS and deployed upload limits remain **Blocked** by D02. |
 | CV-04a–b; US04, R04, T04 | U: actual image-only XObject and readable+empty page fixture; real parser. EI W3-2 manual entry. | Insufficient text routes to manual entry; readable part survives with partial-page warning. | **Passed** local parser and manual fallback; OCR is out of scope. |
 | CV-05a–d; US03–04, R04, T03 | I/B: missing/outdated consent and withdrawal while provider is held; upload before/after consent. | No unauthorized provider dispatch; rejected preconditions reserve zero attempts; late evidence withheld. | **Passed** I a–c and B d in the complete final run. |
-| CV-06a–f; US04, R05, T04 | U: `{skills:[]}`, missing/extra fields, JSON string, foreign ID, unsupported excerpt. | Explicit empty array is valid no-evidence; all malformed/unsupported alternatives are rejected. | **Passed** U a–f. Transport-level malformed JSON is represented as a provider string; there is no live transport adapter. |
+| CV-06a–f; US04, R05, T04 | U: `{skills:[]}`, missing/extra fields, JSON string, foreign ID, unsupported excerpt. | Explicit empty array is valid no-evidence; all malformed/unsupported alternatives are rejected. | **Passed** U a–f. Additional Gemini transport tests use intercepted malformed/envelope responses; live dispatch remains disabled and unverified. |
 | CV-07a; US05, R05, T05 | I: populated inventory, extract then omit old entries; EB stale draft. | Upload leaves committed skills; omission without explicit removal fails atomically. | **Passed** I and existing EB/EU coverage. Open-page draft recovery is browser-local only. |
 | CV-08a–e; US05, R05, T05 | U/I/EU: alias, C/C++/C#, normalized unmatched duplicates, forged and edited candidate references; save. | Canonical aliases dedupe, punctuation remains distinct, forged origin fails, edit becomes manual. | **Passed** U/I/EU. Expired token is covered in EU with a controlled clock. |
 | CV-09a–c; US04, R11, T04/T11 | I/EI: invalid then valid response, refusal, actual 12-second provider timeouts, parser failure, key replay; inspect attempts/inventory. | Only permitted retry occurs; failures preserve inventory; replay does not redispatch. | **Passed** named variations, including two reserved timeout attempts. A first full browser run showed a generic upload 503 that did not repeat; actual network-lost response remains **Not run**. |
-| CV-10a–b; US04, R04/R11, T04 | I/EI: send contact-bearing synthetic PDF to captured server provider, inspect operation metadata and keyed file replay. K tests name/skill collision. | Contact details removed, no raw text/excerpts in operation rows, changed-file key conflict. | **Mixed:** I/EI passed sampled storage/minimization before this correction; **Failed** K CV-10b: name-token removal erases unrelated `API testing` (DEF-02). Full log/backup audit **Blocked** by D04. |
+| CV-10a–c; US04, R04/R11, T04 | I/EI: send contact-bearing synthetic PDF to captured server provider, inspect operation metadata and keyed file replay. K tests name/skill collision and full-name/token/subword removal. | Contact details removed, no raw text/excerpts in operation rows, changed-file key conflict; unrelated skill evidence retained. | **Passed** sampled storage/minimization and corrected K CV-10b–c. Full log/backup audit **Blocked** by D04; pattern removal does not guarantee anonymity. |
 | RM-01; US06–07, R06–07, T06–07 | EI W3-1/EB: confirmed QA skills, five hours/week; generate from server gaps. | 4–12 occupied weeks, <=300 minutes/week, practical work, valid resource IDs, saved plan. | **Passed local mock** five-week example. Reviewed-resource/content claim **Blocked**: catalogue has `reviewed:false` (D03). |
 | RM-02a–b; US03/07, R07, T03/T07 | I/EI: CV consent declined, outdated/missing roadmap consent, withdrawal during held generation. | Purpose-specific dispatch; zero attempt before consent; withdrawn result cannot activate. | **Passed** I/EI for these gates. |
 | RM-03; US06–07, R06–07, T06/T11 | EI: confirm every catalogue ID with existing plan; request generation. | `NO_GAPS`, zero provider calls/attempts, old plan preserved; no competence claim. | **Passed** EI no-gap checks; absence of competence claim is asserted in EU. |
@@ -56,9 +70,9 @@ Test file keys: **U** = `tests/qa-coverage.test.ts`; **I** = `tests/integration/
 | ID | Reproduction and expected | Actual / evidence | Impact |
 | --- | --- | --- | --- |
 | DEF-01, corrected in local mock | U CV-01d; synthetic PDF says “designed boundary and negative test cases,” alongside affirmative API and Playwright work. Expected `test-design`, `api-testing`, `automation` candidates. | **Passed after correction:** all three candidates from real synthetic PDF parsing, minimized text and mock-provider validation. Prior result omitted test design. | This fixes one narrow demonstrated wording; broader semantic extraction and live AI remain unverified. |
-| DEF-02 | K CV-10b: learner name includes the token `API`, CV says “I performed API testing.” Expected skill phrase retained after name minimization. | **Failed:** minimizer removes `API` globally from unrelated evidence. | Candidate can disappear due to over-broad identifier replacement. |
+| DEF-02, corrected | K CV-10b: learner name includes the token `API`, CV says “I performed API testing.” Expected skill phrase retained after name minimization. K CV-10c checks full identity/token removal and subword preservation. | **Passed after correction:** full identity is removed, the skill phrase remains, case variants are removed and longer unrelated words remain intact. | Exact catalogue phrases protect individual tokens; full known identities are still removed first. Residual identifier ambiguity remains disclosed. |
 
-The mock provider and validator now share one narrow test-design evidence rule. The separate known-defect command still exits nonzero for DEF-02.
+The mock provider and validator share one narrow test-design evidence rule. DEF-01 and DEF-02 regressions now pass in the ordinary unit suite; no known-defect command remains.
 
 ## Three Week 3 expected-versus-observed examples
 
@@ -92,7 +106,6 @@ npm run test:integration
 $env:RUN_AUTHENTICATED_E2E='true'
 $env:E2E_PORT='31347'
 npm run test:e2e
-npm run test:known-defects # expected nonzero until DEF-02 is fixed
 ```
 
 The runner uses generated test secrets and synthetic identities; `RUN_AUTHENTICATED_E2E` must not be enabled against a valued database. Browser failure artifacts are stored in ignored `test-results/`.
