@@ -11,7 +11,8 @@
     "start": "next start --hostname 0.0.0.0",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run tests/unit.test.ts",
+    "test": "vitest run tests/unit.test.ts tests/ai.test.ts tests/qa-coverage.test.ts tests/gemini-provider.test.ts",
+    "test:known-defects": "vitest run tests/known-defects",
     "test:integration": "vitest run tests/integration",
     "test:e2e": "playwright test",
     "db:generate": "prisma generate",
@@ -19,7 +20,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:invite": "node --import tsx scripts/invite.ts",
     "catalogue:validate": "node --import tsx scripts/validate-catalogue.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "ai:configure-mock": "node --import tsx scripts/configure-mock.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.0",
@@ -32,7 +34,8 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "unicode-case-folding": "1.1.2",
-    "zod": "4.6.5"
+    "zod": "4.6.5",
+    "pdf-parse": "2.4.5"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
@@ -41,8 +44,8 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "eslint": "9.39.5",
-    "eslint-config-next": "14.2.35",
-    "prisma": "6.19.3",
+    "eslint-config-next": "16.3.8",
+    "prisma": "7.10.0",
     "tsx": "4.23.15",
     "typescript": "6.0.3",
     "vitest": "5.0.3"

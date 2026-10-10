@@ -2,10 +2,11 @@ import type { PrismaClient, Prisma } from '../generated/prisma/client';
 import { catalogue } from './catalogue';
 import { DomainError, assertRevision, consentSchema, inventorySchema, profileSchema, reviewInventory, sameInventory, taskSchema, POLICY_VERSION } from './domain';
 import type { AppState, SkillEntry } from './types';
+import { verifyCandidate } from './candidate-origin';
 export type Claims = { id: string; email: string; sessionVersion: number };
-type Tx = Prisma.TransactionClient;
+export type Tx = Prisma.TransactionClient;
 // A single lock order (invitation, then user) serializes mutations with revocation/deletion.
-async function access(tx:Tx,claims:Claims,lock=false) {
+export async function access(tx:Tx,claims:Claims,lock=false) {
  if(lock) {
   await tx.$queryRaw`SELECT email FROM "Invitation" WHERE email=${claims.email} FOR UPDATE`;
   await tx.$queryRaw`SELECT id FROM "User" WHERE id=${claims.id} FOR UPDATE`;
@@ -38,7 +39,7 @@ export async function getState(client:PrismaClient,claims:Claims):Promise<AppSta
   ]);
   const current={cv_extraction:false,roadmap_generation:false};
   for(const c of consents)if(c.purpose in current)current[c.purpose as keyof typeof current]=c.policyVersion===POLICY_VERSION&&c.granted;
-  return {name:user.name,profile:{currentRole:p.currentRole,yearsExperience:p.yearsExperience,hoursPerWeek:p.hoursPerWeek,confirmed:p.confirmed,inventoryConfirmed:p.inventoryConfirmed,planningRevision:p.planningRevision},skills:skills.map(s=>({key:s.key,canonicalSkillId:s.canonicalSkillId,label:s.label,source:s.source as SkillEntry['source']})),consents:current,roadmap:roadmap?{id:roadmap.id,inputRevision:roadmap.inputRevision,catalogueVersion:roadmap.catalogueVersion,createdAt:roadmap.createdAt.toISOString(),deferredSkillIds:[],tasks:roadmap.tasks.map(t=>({id:t.id,week:t.week,kind:t.kind as 'learning'|'practical',title:t.title,activity:t.activity,completionCriterion:t.completionCriterion,skillIds:t.skillIds,resourceIds:t.resourceIds,estimatedMinutes:t.estimatedMinutes,completed:t.completed,revision:t.revision}))}:null,archivedRoadmaps:[]};
+  return {name:user.name,profile:{currentRole:p.currentRole,yearsExperience:p.yearsExperience,hoursPerWeek:p.hoursPerWeek,confirmed:p.confirmed,inventoryConfirmed:p.inventoryConfirmed,planningRevision:p.planningRevision},skills:skills.map(s=>({key:s.key,canonicalSkillId:s.canonicalSkillId,label:s.label,source:s.source as SkillEntry['source']})),consents:current,roadmap:roadmap?{id:roadmap.id,inputRevision:roadmap.inputRevision,catalogueVersion:roadmap.catalogueVersion,createdAt:roadmap.createdAt.toISOString(),deferredSkillIds:roadmap.deferredSkillIds,tasks:roadmap.tasks.map(t=>({id:t.id,week:t.week,kind:t.kind as 'learning'|'practical',title:t.title,activity:t.activity,completionCriterion:t.completionCriterion,skillIds:t.skillIds,resourceIds:t.resourceIds,estimatedMinutes:t.estimatedMinutes,completed:t.completed,revision:t.revision}))}:null,archivedRoadmaps:[]};
  },{isolationLevel:'RepeatableRead'});
 }
 export async function putProfile(client:PrismaClient,claims:Claims,input:unknown) {
@@ -56,7 +57,15 @@ export async function putSkills(client:PrismaClient,claims:Claims,input:unknown)
   await access(tx,claims,true);const p=await tx.profile.findUniqueOrThrow({where:{userId:claims.id}});assertRevision(p.planningRevision,body.expectedRevision);
   const rows=await tx.confirmedSkill.findMany({where:{userId:claims.id}});
   const old:SkillEntry[]=rows.map(s=>({key:s.key,canonicalSkillId:s.canonicalSkillId,label:s.label,source:s.source as SkillEntry['source']}));
-  const next=reviewInventory(old,body);const changed=!sameInventory(old,next)||!p.inventoryConfirmed;
+  const consent=await tx.consent.findFirst({where:{userId:claims.id,purpose:'cv_extraction'},orderBy:{sequence:'desc'}});
+  const next=reviewInventory(old,body).map(s=>{
+   if(old.some(o=>o.key===s.key))return s;
+   const submitted=body.entries.find(e=>e.canonicalSkillId===s.canonicalSkillId&&e.label===s.label);
+   if(submitted?.candidateReference){
+    if(!consent?.granted||consent.policyVersion!==POLICY_VERSION||!verifyCandidate(submitted.candidateReference,claims,consent.sequence,s.canonicalSkillId,s.label))throw new DomainError('CANDIDATE_EXPIRED','Candidate reference expired or changed. Review it as manual entry before saving.',409);
+    return {...s,source:'cv' as const};
+   }return s;
+  });const changed=!sameInventory(old,next)||!p.inventoryConfirmed;
   if(changed){
    await tx.confirmedSkill.deleteMany({where:{userId:claims.id}});
    await tx.confirmedSkill.createMany({data:next.map(s=>({...s,userId:claims.id,catalogueVersion:catalogue.version}))});
@@ -67,8 +76,15 @@ export async function putSkills(client:PrismaClient,claims:Claims,input:unknown)
 }
 export async function putConsent(client:PrismaClient,claims:Claims,input:unknown){
  const body=consentSchema.parse(input);
- await client.$transaction(async tx=>{await access(tx,claims,true);await tx.consent.create({data:{...body,userId:claims.id}});});
+ await client.$transaction(async tx=>{await access(tx,claims,true);await tx.consent.create({data:{...body,userId:claims.id}});if(!body.granted)await tx.aIOperation.updateMany({where:{userId:claims.id,kind:body.purpose,state:'running'},data:{state:'cancelled',code:'CONSENT_REQUIRED'}});});
  return getState(client,claims);
+}
+export async function endSession(client:PrismaClient,claims:Claims){
+ await client.$transaction(async tx=>{
+  // Idempotent for a repeated sign-out or an already deleted/revoked account.
+  try{await access(tx,claims,true);}catch(error){if(error instanceof DomainError&&error.code==='ACCESS_ENDED')return;throw error;}
+  await tx.user.update({where:{id:claims.id},data:{sessionVersion:{increment:1}}});await tx.aIOperation.updateMany({where:{userId:claims.id,state:'running'},data:{state:'cancelled',code:'ACCESS_ENDED'}});
+ });
 }
 export async function patchTask(client:PrismaClient,claims:Claims,id:string,input:unknown){
  const body=taskSchema.parse(input);
