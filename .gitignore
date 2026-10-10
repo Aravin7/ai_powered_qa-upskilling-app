@@ -1,5 +1,6 @@
 node_modules/
 .next/
+.next-e2e/
 out/
 .env
 .env.*
@@ -12,3 +13,4 @@ src/generated/
 .DS_Store
 *.log
 uploads/
+.test-tools/

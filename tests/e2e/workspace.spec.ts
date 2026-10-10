@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test';
+// This is the browser/dev-compilation allowance; application operation deadlines are unchanged.
+test.setTimeout(90000);
 test('T02/T05 confirmed profile and manual skills survive reload',async({page})=>{
  await page.goto('/demo');await page.getByRole('button',{name:'My profile',exact:true}).click();
  await page.getByLabel('Learning hours per week').fill('6');await page.getByRole('button',{name:'Save profile',exact:true}).click();await expect(page.getByRole('status')).toContainText('Profile saved');

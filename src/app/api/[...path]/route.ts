@@ -3,7 +3,9 @@ import { ZodError } from 'zod';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { DomainError, compare, consentSchema, generateSchema } from '@/lib/domain';
-import { getState, putProfile, putSkills, putConsent, patchTask, deleteAccount } from '@/lib/store';
+import { getState, putProfile, putSkills, putConsent, patchTask, deleteAccount, endSession } from '@/lib/store';
+import { extractSkills, generateRoadmap, operationStatus } from '@/lib/ai-operations';
+import { readPdfUpload } from '@/lib/pdf';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 function response(code:string,message:string,data:unknown,status=200){return Response.json({code,message,data},{status,headers:{'Cache-Control':'private, no-store','Vary':'Cookie'}});}
@@ -28,6 +30,8 @@ async function handler(req:Request,ctx:{params:Promise<{path:string[]}>}){
   if(req.method==='GET'&&path==='me')data=state;
   else if(req.method==='GET'&&path==='gaps')data=compare(state.skills);
   else if(req.method==='GET'&&path==='roadmap')data=state.roadmap;
+  else if(req.method==='POST'&&path==='session/end'){await endSession(client,claims);data=null;}
+  else if(req.method==='GET'&&/^ai\/operations\/[a-zA-Z0-9-]{1,80}$/.test(path))data=await operationStatus(client,claims,path.split('/')[2]);
   else if(req.method==='PUT'&&path==='profile')data=await putProfile(client,claims,await readJson(req));
   else if(req.method==='PUT'&&path==='skills')data=await putSkills(client,claims,await readJson(req));
   else if(req.method==='PUT'&&path==='consent')data=await putConsent(client,claims,consentSchema.parse(await readJson(req)));
@@ -36,11 +40,12 @@ async function handler(req:Request,ctx:{params:Promise<{path:string[]}>}){
    const body=await readJson(req);if(!body||Object.keys(body).length!==1||body.confirmation!=='DELETE')throw new DomainError('CONFIRMATION_REQUIRED','Type DELETE to confirm.');
    data=await deleteAccount(client,claims);
   }else if(req.method==='POST'&&path==='roadmaps/generate'){
-   generateSchema.parse(await readJson(req));
-   if(compare(state.skills).noGaps)return response('NO_GAPS','No missing listed requirements; this does not certify competence.',null);
-   throw new DomainError('LIVE_AI_UNAVAILABLE','Live AI is not enabled in this first build. Your existing data is preserved.',503);
+   const result=await generateRoadmap(client,claims,generateSchema.parse(await readJson(req)));
+   return response(result.code,result.code==='NO_GAPS'?'No missing listed requirements; this does not certify competence.':'Mock operation status. No live AI call was made.',result);
   }else if(req.method==='POST'&&path==='cv/extract'){
-   throw new DomainError('EXTRACTION_UNAVAILABLE','CV processing is not enabled in this build. Enter skills manually; no file was processed.',503);
+   if(!state.consents.cv_extraction)throw new DomainError('CONSENT_REQUIRED','Enable CV extraction consent before uploading.',403);
+   const upload=await readPdfUpload(req);
+   data=await extractSkills(client,claims,upload.bytes,upload.operationKey);
   }else throw new DomainError('NOT_FOUND','Route not found.',404);
   return response('OK','Saved.',data);
  }catch(e){

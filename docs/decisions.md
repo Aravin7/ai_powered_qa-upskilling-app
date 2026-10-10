@@ -37,6 +37,12 @@ For a material change record actual date, decision, rationale/alternative, appro
 
 Historical warnings: the original transcript ends before Q10 is answered; older eight-role/quizzes/rebranding/admin requirements are superseded. Earlier validators silently clamped work/weeks, sliced to twelve tasks, omitted invoked auth/consent/quota/token caps and failed validation retries; do not reuse those handlers.
 
+## CV minimization correction — 10 October 2026
+
+- R04/T04, DEF-02: replace global name-substring removal with case-insensitive whole-identifier removal. Full identities are removed first; an individual name token within an exact catalogue skill phrase is retained so a name containing `API` does not erase `API testing`. Contact/header filtering remains in effect; this pattern-based minimizer still cannot guarantee anonymity.
+- The former known-defect case and a full-name/token/subword regression now run in the normal unit suite. The unit runner uses one worker after a concurrent cold parser test reached the unchanged eight-second application deadline; the sequential full run passed all 89 cases. No retry or deadline relaxation was introduced.
+- No requirements, database schema, provider approval or deployment configuration changed.
+
 ## Initial build — 3 October 2026
 
 - Pinned Next.js 16.3.8 after verification from the official release and npm registry. Stable NextAuth 4.24.15 explicitly permits Next.js 16 and React 19 in its peer constraints; Prisma 7.10.0 uses the PostgreSQL driver adapter. No beta ORM selected.
@@ -45,3 +51,20 @@ Historical warnings: the original transcript ends before Q10 is answered; older 
 - Database writes lock the invitation then user consistently. Revision checks protect profile/inventory/task changes. Deleted application records cascade; revoked invitations remain an explicit re-entry fence. No all-store deletion claim.
 - Development field ceilings: role 2–100 characters; years integer 0–60; inventory 100 entries; label 100 characters; JSON mutation 32 KiB. User-facing boundaries documented in forms and specs.
 - No external participant identity, funding amount, pricing, retention schedule or permission has been invented.
+
+## Live-provider preparation — 10 October 2026
+
+- The user selected Google Gemini Flash Latest (`gemini-flash-latest`) after authorizing work toward live AI, while funded limits/privacy terms remained unapproved. This is a changing alias and no fixed billable model, price, currency, retention or spending limit has been assumed.
+- Added a provider-independent request builder and a direct Gemini REST adapter with structured JSON output, one HTTP request per reserved attempt, bounded response reading, no SDK retries and no tools. Tests intercept fetch and make no live calls. Existing application routes still select the mock; paid mode remains disabled until fixed provider pricing, reviewed content, purpose-specific disclosure, retention and shared funded ceiling satisfy the specification.
+- The current working copy had the R11 five-attempt guard commented out. After the conflict was reported, the user explicitly asked to restore it. The shared CV/roadmap quota gate is active again; live dispatch remains disabled for other open gates.
+
+## Week 3 connected mock workflow — 10 October 2026
+
+- R03–R11/R14 and corresponding US/T groups. User requested synthetic/mocked development with no paid calls/deployment. Created `codex/week3-connected-workflow`; production admission remains closed.
+- Added transient PDF parsing, signed candidate origins, reviewed merge, mock provider contracts, shared PostgreSQL quota/funding/operations and fenced atomic activation. Migration adds operations/attempts/funding/global revision and plan provenance. No product expansion or additional service.
+- Separate browser-only demo retained. Signed-in UI uses private services; the new browser test simulates Auth.js session establishment and does not prove Google OAuth.
+- Disposable Node parser processes contain native worker-thread crashes. Changed `fork` to `spawn` for Turbopack compatibility; the subsequent production build and connected browser journey passed. Bounds/native-memory caveat are documented in specs/README.
+- Explicit UTC database-clock queries correct the adapter timezone reinterpretation exposed by real PostgreSQL tests. Short transactions, consistent lock ordering, partial unique operation index and final fences protect multi-instance state.
+- Mock budget units are nonmonetary; the later Gemini transport is not connected to paid dispatch. Conservative exact synthetic activity validation is not general LLM semantic evaluation. Retention facts and reviewed content remain external gates.
+- Aligned Prisma CLI/client/adapter 7.10.0, Next ESLint configuration 16.3.8, pinned pdf-parse 2.4.5 and updated lockfile. Sources: [Prisma 7 migration guidance](https://www.prisma.io/docs/guides/upgrade-prisma-orm/v7), [pdf-parse maintainer documentation](https://github.com/mehmet-kozan/pdf-parse), and bundled Next route-handler/client-boundary/external-package guides. npm advisory assessment remains pending.
+- Expected/actual tests are in BUILD-STATUS. Continuation resolved the earlier approval-review limit: 41 unit/parser cases, 20 PostgreSQL cases and six browser journeys pass. Production build and local production smoke pass. The browser fixture now checks API readiness and awaits Auth.js sign-out persistence; no product timeout or safety gate was relaxed. Google OAuth success, live provider behavior and deployed-runtime evidence remain unverified.

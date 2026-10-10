@@ -1,12 +1,13 @@
 import type { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import { db } from './db';
-import { admitGoogle } from './store';
+import { admitGoogle, endSession } from './store';
 export const authOptions: NextAuthOptions = {
  secret: process.env.NEXTAUTH_SECRET,
  providers: [GoogleProvider({ clientId: process.env.GOOGLE_CLIENT_ID || '', clientSecret: process.env.GOOGLE_CLIENT_SECRET || '', authorization: { params: { scope: 'openid email profile', prompt: 'select_account' } }, checks: ['pkce', 'state', 'nonce'] })],
  session: { strategy: 'jwt', maxAge: 8 * 60 * 60 },
  pages: { signIn: '/', error: '/' },
+ events: {async signOut({token}){if(typeof token?.uid==='string'&&typeof token.email==='string'&&typeof token.sessionVersion==='number')await endSession(db(),{id:token.uid,email:token.email,sessionVersion:token.sessionVersion});}},
  callbacks: {
   async signIn({ account, profile, user }) {
    if (account?.provider !== 'google' || !profile || !('email_verified' in profile) || profile.email_verified !== true || !profile.email || !profile.sub) return false;
