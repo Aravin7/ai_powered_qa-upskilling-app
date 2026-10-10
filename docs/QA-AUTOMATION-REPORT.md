@@ -1,5 +1,7 @@
 # QA automation report — 10 October 2026
 
+11 October follow-on: Gemini configuration/funding/consent tests G-01–G-13 and their requirement mapping are documented in [GEMINI-PILOT.md](GEMINI-PILOT.md). Current execution results superseding the historical checkpoint below are in [BUILD-STATUS.md](BUILD-STATUS.md). The added service tests intercept HTTP and do not verify live Gemini or real Google OAuth. Browser/device/accessibility, network interruption, T13 measurement, deployment, backup/provider deletion and professional semantic review gaps remain open.
+
 Baseline commit `457afd301de5e3603c998941e8b023d6a4c8bad5`; working branch `codex/qa-automation-coverage`. The Week 3 application implementation was already uncommitted on `codex/week3-connected-workflow` when this work began. Creating the new branch retained those changes. The reported checks cover that working tree, not the baseline commit alone. At the test execution checkpoint, no commit, push, merge, deployment, paid AI call or personal database reset was performed. Branch publication was requested afterward.
 
 The expected behavior is `specs.md` sections 1–2 and its T01–T14 matrix. Tests use synthetic data, the real Node `pdf-parse` child process, a separate migrated PostgreSQL 18.4 database, and a server-side mock `AIProvider`. Playwright authenticates with a synthetic signed Auth.js session only in the isolated test runner; it does not verify Google OAuth. `.env` credentials are not used as test credentials. Browser traces/screenshots are retained on failure under ignored `test-results/`.

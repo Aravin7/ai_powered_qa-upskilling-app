@@ -4,7 +4,7 @@ import { affirmativeEvidence, supportsCatalogueSkill } from './ai-output';
 import { mockConfiguration } from './ai-config';
 import type { Profile, SkillEntry } from './types';
 export type ProviderInput={kind:'cv_extraction';text:string}|{kind:'roadmap_generation';profile:Pick<Profile,'hoursPerWeek'>;skills:Pick<SkillEntry,'canonicalSkillId'>[]};
-export interface AIProvider {readonly model:string;respond(input:ProviderInput,signal:AbortSignal):Promise<unknown>}
+export interface AIProvider {readonly model:string;checkInput?(input:ProviderInput):void;respond(input:ProviderInput,signal:AbortSignal):Promise<unknown>}
 export class ProviderFailure extends DomainError {
  constructor(code:'PROVIDER_REFUSED'|'PROVIDER_INCOMPLETE'|'PROVIDER_UNAVAILABLE',public retryable=true){super(code,'The AI provider could not supply a complete valid response. Existing data is preserved.',502)}
 }

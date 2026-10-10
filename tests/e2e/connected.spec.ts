@@ -4,6 +4,13 @@ import { PrismaClient } from '../../src/generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { catalogue } from '../../src/lib/catalogue';
 import { syntheticPdf } from '../synthetic-pdf';
+test.beforeAll(async({request})=>{
+ if(process.env.RUN_AUTHENTICATED_E2E!=='true')return;
+ // Cold dev-route compilation belongs to harness setup, outside the timed learner journey.
+ test.setTimeout(120000);
+ expect((await request.get('/api/me')).status()).toBe(401);
+ expect((await request.get('/api/auth/providers')).status()).toBe(200);
+});
 test('connected authenticated mock workflow: PDF review, plan, progress, fallback and status',async({page,context})=>{
  test.skip(process.env.RUN_AUTHENTICATED_E2E!=='true','Requires isolated TEST_DATABASE_URL and a simulated signed session; Google OAuth is not exercised.');
  test.setTimeout(90000);

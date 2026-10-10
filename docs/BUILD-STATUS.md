@@ -1,6 +1,33 @@
-# Build status — 10 October 2026 · IT6070 Week 3
+# Build status — 11 October 2026 · IT6070 Week 3
 
-Current branch: `codex/qa-automation-coverage`, branched from `codex/week3-connected-workflow` while its Week 3 implementation was still uncommitted. Connected **local mock-provider** implementation; not a live AI integration or verified production release. Requirements remain in `../specs.md`. Prior evidence is retained in `BUILD-STATUS-2026-10-03.md`; historical passes are not current regression evidence.
+## Current Gemini controls checkpoint — 11 October 2026
+
+Current branch: `codex/gemini-dispatch-controls`, created from merged main `2f86215abe47f6f6acd192863ab240f49564d4ce`. Tested that commit plus the uncommitted Gemini controls, migration, UI and tests in this branch. The working tree was clean before this task; pre-existing functionality is retained. Historical sections below describe earlier revisions.
+
+Gemini is now connected through server-only provider selection, strict fixed-model/private configuration, versioned provider disclosure/consent, reviewed-catalogue checks and shared USD micro-unit reservations. Configuration changes and budget revocation fence activation; failed generation preserves plans/progress. Both mock and synthetic Gemini processing are rejected in production. No actual `.env`, API key, provider approval or catalogue review was supplied/changed. The running configuration remains mock. Setup details and G-01–G-13 requirement mapping are in [GEMINI-PILOT.md](GEMINI-PILOT.md).
+
+Environment: Windows, PowerShell, Node 24.19.0; real isolated PostgreSQL 18.4 on localhost port 55437, fresh disposable database `qa_gemini_controls`; Chrome on separate E2E port 31347. All three migrations applied successfully to that fresh database. Synthetic users/prices/configurations and intercepted provider responses only; no paid request, real Google OAuth, deployment or personal database reset.
+
+- **92 unit/parser tests PASS**, `npm test`, six files. Real PDF parser remains bounded at eight seconds; provider responses are mocked/intercepted.
+- **50 PostgreSQL integration tests PASS**, complete `npm run test:integration`, four files, including ten new Gemini service cases across two database clients and multiple synthetic users. No hidden retries or assertion weakening.
+- **Typecheck PASS** via `npm run typecheck`; **catalogue validation PASS** via `npm run catalogue:validate`, with eight synthetic skills and `reviewed:false`.
+- **Full lint PASS**, `npm run lint`. Seven targeted adapter/configuration tests also passed after the final prompt wording was aligned with the existing strict semantic validator.
+- **Production build PASS**, `npm run build`, including Prisma generation, compilation, TypeScript and page generation/optimization.
+- Browser full run: **8 PASS, 1 FAIL**. The connected journey reached its final logout/session assertions but exceeded the 90-second test allowance during cleanup after cold route compilation. Compilation warmup now runs in separate harness setup; `npm run test:e2e -- tests/e2e/connected.spec.ts` then **PASS**, with the journey completing in 21.9 seconds. Its journey allowance and application deadlines remain unchanged. All nine cases have passing evidence across the full run and affected rerun, not a single final nine-test run. Browser identity is synthetic Auth.js and AI is mock; Google OAuth and Gemini UI/live behavior are not verified. Targeted lint for the changed harness also passed.
+- The initial browser run timed out starting its web server before any test ran. A concurrent build compiled but failed on incomplete generated E2E TypeScript output. Clearing the disposable `.next-e2e` cache and rerunning the build sequentially resolved that failure; no product assertion or timeout was relaxed.
+- Initial test runs exposed an unpublished migration constraint omission, two test-runner timeouts and a provider fixture quote mismatch after identity minimization. The migration now allows Gemini budgets with currency/configuration constraints; a fresh database verifies the final SQL. The integration runner allows 15 seconds without changing parser/provider/operation deadlines. The fixture now quotes its actual supplied evidence; the complete 50-test rerun passed.
+
+Three Week 3 examples observed in the passing integration run (all use intercepted HTTP, not live AI):
+
+| Test | Expected | Actual |
+| --- | --- | --- |
+| G-05, valid PDF and roadmap | Current consent/configuration permits a real parsed PDF candidate and validated saved roadmap; shared funding reserved before each dispatch | One API testing candidate returned, `PLAN_SAVED`, synthetic configured model provenance recorded, two HTTP interceptions and two reservations |
+| G-04, unmet gates | Old mock consent, unreviewed catalogue, missing key and production mode cannot authorize Gemini | Controlled errors; zero attempts/provider calls |
+| G-06, failure then fallback recovery | Two invalid responses retain prior completed task/plan; deliberate new-key valid response replaces atomically | Two calls rejected, old plan ID/progress retained, failed reservations retained; recovery saved a different plan with all tasks unchecked |
+
+**Blocked / not run:** fixed-model availability and pricing verification, actual approved funding/privacy terms, professional catalogue review and semantic assessment, live Gemini, real Google OAuth, deployment/runtime compatibility, broader browser/accessibility/network checks, T13 measurement and provider/backup retention/deletion evidence. The synthetic semantic validator still accepts only exact catalogue activities/outcomes/effort; general semantic plan quality is unverified. No production-readiness or full requirement-coverage claim follows from these passes.
+
+Earlier branch: `codex/qa-automation-coverage`, branched from `codex/week3-connected-workflow` while its Week 3 implementation was still uncommitted. Connected **local mock-provider** implementation; not a live AI integration or verified production release. Requirements remain in `../specs.md`. Prior evidence is retained in `BUILD-STATUS-2026-10-03.md`; historical passes are not current regression evidence.
 
 ## Live-provider preparation — 10 October 2026
 

@@ -1,9 +1,10 @@
 import { AI_LIMITS } from './ai-config';
 import { ProviderFailure, type AIProvider, type ProviderInput } from './ai-provider';
 import { providerRequest } from './ai-provider-request';
+import { DomainError } from './domain';
 
 type Fetch = typeof fetch;
-type GeminiOptions = { apiKey: string; model: string; fetchImpl?: Fetch };
+type GeminiOptions = { apiKey: string; model: string; maxOutputTokens?:number;maxRequestBytes?:number; fetchImpl?: Fetch };
 
 const text = (maxLength: number) => ({ type: 'string', description: `At most ${maxLength} characters.` });
 const stringArray = (maxItems: number) => ({ type: 'array', items: { type: 'string' }, maxItems });
@@ -55,23 +56,22 @@ async function boundedBody(response: Response) {
   catch { throw new ProviderFailure('PROVIDER_INCOMPLETE'); }
 }
 
-export function createGeminiProvider({ apiKey, model, fetchImpl = fetch }: GeminiOptions): AIProvider {
+export function createGeminiProvider({ apiKey, model, maxOutputTokens=4096,maxRequestBytes=200000, fetchImpl = fetch }: GeminiOptions): AIProvider {
   if (!apiKey || !/^gemini-[a-z0-9.-]+$/.test(model)) throw new Error('Gemini provider needs a key and valid model ID.');
-  return { model, async respond(input: ProviderInput, signal: AbortSignal) {
-    signal.throwIfAborted();
+  function requestBody(input:ProviderInput){
     const prompt = providerRequest(input);
+    const body=JSON.stringify({systemInstruction:{parts:[{text:prompt.system}]},contents:[{role:'user',parts:[{text:prompt.user}]}],generationConfig:{maxOutputTokens,responseFormat:{text:{mimeType:'application/json',schema:input.kind==='cv_extraction'?extractionFormat:roadmapFormat}}}});
+    if(Buffer.byteLength(body)>maxRequestBytes)throw new DomainError('PROVIDER_INPUT_LIMIT','Minimized provider request exceeds the approved byte ceiling. Use manual entry or a smaller CV.',422);
+    return body;
+  }
+  return { model,checkInput(input){requestBody(input);}, async respond(input: ProviderInput, signal: AbortSignal) {
+    signal.throwIfAborted();const body=requestBody(input);
     let response: Response;
     try {
       response = await fetchImpl(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: 'POST', cache: 'no-store', redirect: 'error', signal,
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: prompt.system }] },
-          contents: [{ role: 'user', parts: [{ text: prompt.user }] }],
-          generationConfig: { maxOutputTokens: 4096, responseFormat: { text: {
-            mimeType: 'application/json', schema: input.kind === 'cv_extraction' ? extractionFormat : roadmapFormat,
-          } } },
-        }),
+        body,
       });
     } catch (error) {
       if (signal.aborted) throw error;

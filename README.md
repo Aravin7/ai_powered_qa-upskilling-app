@@ -31,7 +31,7 @@ The demo uses a synthetic person and unreviewed content. Its scheduler is determ
 - Full roadmap schema/business validation, conservative synthetic activity/effort matching, atomic archive/replacement and unchecked new tasks. Failures leave the active plan and progress intact.
 - Current consent, session, invitation, planning and catalogue checks before dispatch and activation. Logout and consent withdrawal fence pending work.
 
-A server-side Gemini REST adapter is prepared and tested with intercepted responses, but is not selected by application routes. Setting an API key or `AI_MODE=paid` cannot enable paid calls. Production rejects mock processing and participant admission remains closed. No deployment or GitHub push was performed.
+A server-side Gemini REST adapter is connected behind approved configuration, consent, catalogue and shared funding gates. Setting an API key or `AI_MODE=paid` cannot enable calls. The synthetic Gemini pilot and mock processing are rejected in production; participant admission remains closed. Live Gemini has not been tested. See [Gemini pilot controls](docs/GEMINI-PILOT.md) before configuring it.
 
 ## Configure local Google + PostgreSQL testing
 
@@ -138,6 +138,6 @@ Create a private repository and commit this folder’s source. Include the lockf
 
 ## Next implementation milestone
 
-The local mock workflow and intercepted Gemini adapter tests are recorded in `docs/BUILD-STATUS.md`. The adapter does not make a live call through the app. The next step is conservative pricing/token reservation and a provider-specific consent notice, followed by deliberate route selection when a fixed model, funded ceiling, reviewed content, operator ownership and retention terms are approved. The running workflow still uses the deterministic mock and cannot demonstrate live AI quality.
+The local mock workflow and intercepted Gemini service tests are recorded in `docs/BUILD-STATUS.md`. Gemini selection, conservative currency reservation, configuration-bound consent and revocation fences are implemented. The supplied catalogue is still unreviewed and external model/pricing/funding/privacy approvals are absent, so the running configuration remains mock. Follow `docs/GEMINI-PILOT.md` only after those decisions and explicit live-test authorization. Intercepted tests cannot demonstrate live AI quality.
 
 IT6070 still needs real professional/problem evidence, actual connected AI tests, costs/adoption, the four-page evidence PDF, an accessible repository and the narrated demo. Record this build and subsequent corrections in the AI-use declaration. See the specification for the weekly checkpoints.

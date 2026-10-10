@@ -9,7 +9,7 @@ export class DomainError extends Error {
 export const profileSchema = z.object({currentRole:z.string().trim().min(2).max(100),yearsExperience:z.number().int().min(0).max(60),hoursPerWeek:z.number().int().min(1).max(40),expectedRevision:z.number().int().nonnegative()}).strict();
 export const skillInput = z.object({canonicalSkillId:z.string().max(80).nullable(),label:z.string().trim().min(1).max(100)}).strict();
 export const inventorySchema = z.object({entries:z.array(skillInput.extend({candidateReference:z.string().max(2000).optional()})).max(100),removals:z.array(z.string().max(120)).max(100),expectedRevision:z.number().int().nonnegative()}).strict();
-export const consentSchema = z.object({purpose:z.enum(['cv_extraction','roadmap_generation']),granted:z.boolean(),policyVersion:z.literal(POLICY_VERSION)}).strict();
+export const consentSchema = z.object({purpose:z.enum(['cv_extraction','roadmap_generation']),granted:z.boolean(),policyVersion:z.string().min(1).max(120)}).strict();
 export const taskSchema = z.object({completed:z.boolean(),expectedTaskRevision:z.number().int().nonnegative()}).strict();
 export const generateSchema = z.object({operationKey:z.string().uuid(),expectedPlanningRevision:z.number().int().nonnegative(),expectedCatalogueVersion:z.string().max(100),introductoryPlanAcknowledged:z.boolean()}).strict();
 export const planSchema = z.object({

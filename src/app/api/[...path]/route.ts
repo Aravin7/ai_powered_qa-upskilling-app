@@ -41,7 +41,7 @@ async function handler(req:Request,ctx:{params:Promise<{path:string[]}>}){
    data=await deleteAccount(client,claims);
   }else if(req.method==='POST'&&path==='roadmaps/generate'){
    const result=await generateRoadmap(client,claims,generateSchema.parse(await readJson(req)));
-   return response(result.code,result.code==='NO_GAPS'?'No missing listed requirements; this does not certify competence.':'Mock operation status. No live AI call was made.',result);
+   return response(result.code,result.code==='NO_GAPS'?'No missing listed requirements; this does not certify competence.':'Learning roadmap operation status.',result);
   }else if(req.method==='POST'&&path==='cv/extract'){
    if(!state.consents.cv_extraction)throw new DomainError('CONSENT_REQUIRED','Enable CV extraction consent before uploading.',403);
    const upload=await readPdfUpload(req);
