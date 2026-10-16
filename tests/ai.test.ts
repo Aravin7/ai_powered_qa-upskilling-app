@@ -23,6 +23,19 @@ describe('provider-independent request contract; no transport',()=>{
   expect(request.user).not.toMatch(/https?:\/\/|minimizedCvText|email|userId/);
   expect(data.skills).toHaveLength(8);
  });
+ it('includes a validated five-week witness for the live synthetic profile, but none below the duration minimum',()=>{
+  const confirmed=['test-design','api-testing','automation'].map(canonicalSkillId=>({canonicalSkillId}));
+  const feasible=JSON.parse(providerRequest({kind:'roadmap_generation',profile:{hoursPerWeek:5},skills:confirmed}).user);
+  expect(feasible.feasibleOneTaskPerWeek).toEqual([
+   {week:1,skillId:'ai-basics',estimatedMinutes:120,kind:'learning'},
+   {week:2,skillId:'prompt-design',estimatedMinutes:150,kind:'learning'},
+   {week:3,skillId:'ai-evaluation',estimatedMinutes:180,kind:'learning'},
+   {week:4,skillId:'responsible-ai',estimatedMinutes:90,kind:'learning'},
+   {week:5,skillId:'ci',estimatedMinutes:120,kind:'practical'},
+  ]);
+  const insufficient=JSON.parse(providerRequest({kind:'roadmap_generation',profile:{hoursPerWeek:5},skills:confirmed.concat([{canonicalSkillId:'ai-basics'},{canonicalSkillId:'prompt-design'}])}).user);
+  expect(insufficient.feasibleOneTaskPerWeek).toBeNull();
+ });
 });
 describe('T04 transient PDF and evidence validation',()=>{
  it('parses an actual synthetic PDF and validates mocked affirmative skill extraction',async()=>{

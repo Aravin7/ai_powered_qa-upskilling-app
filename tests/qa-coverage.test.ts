@@ -153,7 +153,7 @@ describe('RM-05/RM-06/RM-07 / R07 / T07: strict plan boundaries', () => {
   });
   it('RM-07a rejects a model-only infeasibility claim as unverified', () => {
     const state = demoState();
-    expect(() => validateRoadmapOutput({ outcome: 'infeasible', reason: 'No proposal', constraintCode: 'undetermined', deferredSkillIds: [], tasks: [] }, state.profile, state.skills)).toThrowError(/did not produce a valid schedule/);
+    expect(() => validateRoadmapOutput({ outcome: 'infeasible', reason: 'No proposal', constraintCode: 'undetermined', deferredSkillIds: [], tasks: [] }, state.profile, state.skills)).toThrowError(/valid catalogue schedule/);
   });
   it('RM-07b distinguishes independently demonstrable capacity shortage', () => {
     const state = demoState();
