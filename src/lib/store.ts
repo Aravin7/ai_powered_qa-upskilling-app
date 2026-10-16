@@ -1,7 +1,7 @@
 import type { PrismaClient, Prisma } from '../generated/prisma/client';
 import { catalogue } from './catalogue';
 import { DomainError, assertRevision, consentSchema, inventorySchema, profileSchema, reviewInventory, sameInventory, taskSchema } from './domain';
-import { processingDisclosure } from './gemini-pilot';
+import { processingDisclosure } from './ai-execution';
 import type { AppState, SkillEntry } from './types';
 import { verifyCandidate } from './candidate-origin';
 export type Claims = { id: string; email: string; sessionVersion: number };

@@ -11,7 +11,7 @@
     "start": "next start --hostname 0.0.0.0",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --maxWorkers=1 tests/unit.test.ts tests/ai.test.ts tests/qa-coverage.test.ts tests/gemini-provider.test.ts tests/cv-minimization.test.ts tests/gemini-controls.test.ts",
+    "test": "vitest run --maxWorkers=1 tests/unit.test.ts tests/ai.test.ts tests/qa-coverage.test.ts tests/groq-provider.test.ts tests/cv-minimization.test.ts tests/groq-controls.test.ts",
     "test:integration": "vitest run --maxWorkers=1 --testTimeout=15000 tests/integration",
     "test:e2e": "playwright test",
     "db:generate": "prisma generate",
@@ -21,7 +21,8 @@
     "catalogue:validate": "node --import tsx scripts/validate-catalogue.ts",
     "postinstall": "prisma generate",
     "ai:configure-mock": "node --import tsx scripts/configure-mock.ts",
-    "ai:configure-gemini": "node --import tsx scripts/configure-gemini.ts"
+    "ai:configure-groq": "node --import tsx scripts/configure-groq.ts",
+    "test:live:groq": "node --import tsx scripts/test-live-groq.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.0",

@@ -5,8 +5,8 @@ import { access, getState, type Claims, type Tx } from './store';
 import { catalogue } from './catalogue';
 import { assertRevision, compare, DomainError, generateSchema } from './domain';
 import { AI_LIMITS, signingSecret } from './ai-config';
-import { executionConfiguration, assertGeminiDispatch, processingDisclosure } from './gemini-pilot';
-import { createGeminiProvider } from './gemini-provider';
+import { executionConfiguration, assertGroqDispatch, processingDisclosure } from './ai-execution';
+import { createGroqProvider } from './groq-provider';
 import { providerRequest, PROVIDER_PROMPT_VERSION } from './ai-provider-request';
 import { fingerprint, signCandidate } from './candidate-origin';
 import { minimizeText, validateExtraction, validateRoadmapOutput } from './ai-output';
@@ -61,7 +61,7 @@ async function begin(client:PrismaClient,claims:Claims,kind:Purpose,key:string,b
   }
   signingSecret();const config=await executionConfiguration(tx);
   const time=await now(tx);const deadline=new Date(Math.min(started+AI_LIMITS.totalMs,time.getTime()+AI_LIMITS.totalMs));
-  if(config.mode==='gemini')assertGeminiDispatch(config,time);
+  if(config.mode==='groq')assertGroqDispatch(config,time);
   if(deadline.getTime()-time.getTime()<3000)throw new DomainError('DEADLINE','Processing deadline reached.',504);
   await tx.aIOperation.updateMany({where:{userId:claims.id,state:'running',deadline:{lte:time}},data:{state:'expired',code:'DEADLINE'}});
   if(await tx.aIOperation.findFirst({where:{userId:claims.id,state:'running'}}))throw new DomainError('OPERATION_BUSY','Another operation is running. Check its status before retrying.',409);
@@ -84,7 +84,7 @@ async function fence(tx:Tx,claims:Claims,op:AIOperation){
  if(config.version!==op.configurationVersion||config.budgetId!==op.budgetId)throw new DomainError('STALE_CONFIGURATION','AI configuration changed. Previous data is preserved.',409);
  const checkedTime=await now(tx);
  if(checkedTime>=current.deadline)throw new DomainError('DEADLINE','Processing deadline reached. Existing data is preserved.',504);
- if(config.mode==='gemini')assertGeminiDispatch(config,checkedTime);
+ if(config.mode==='groq')assertGroqDispatch(config,checkedTime);
  return {current,time:checkedTime,config};
 }
 async function reserve(client:PrismaClient,claims:Claims,op:AIOperation){
@@ -95,7 +95,7 @@ async function reserve(client:PrismaClient,claims:Claims,op:AIOperation){
   const count=await tx.aIAttempt.count({where:{operation:{userId:claims.id},reservedAt:{gt:new Date(time.getTime()-3600000)}}});
   if(count>=5)throw new DomainError('QUOTA_EXHAUSTED','Five attempts have been reserved in the last hour. Try after older attempts expire.',429);
   const budget=await tx.fundingBudget.findUnique({where:{id:config.budgetId}});
-  const currency=config.mode==='mock'?'MOCK':'USD_MICRO';
+  const currency=config.mode==='mock'?'MOCK':'REQUESTS';
   if(!budget||!budget.enabled||budget.mode!==config.mode||budget.currency!==currency||budget.pricingVersion!==config.version||budget.expiresAt<=time||budget.reserved+config.units>budget.ceiling)throw new DomainError('FUNDING_STOP','Shared funding is missing, expired or exhausted. No request was dispatched.',503);
   await tx.fundingBudget.update({where:{id:budget.id},data:{reserved:{increment:config.units}}});
   await tx.aIAttempt.create({data:{operationId:op.id,budgetId:budget.id,reservedUnits:config.units,reservedAt:time}});
@@ -117,7 +117,7 @@ function safeError(error:unknown):DomainError{
 async function propose<T>(client:PrismaClient,claims:Claims,op:AIOperation,provider:AIProvider,input:ProviderInput,validate:(output:unknown)=>T):Promise<T>{
  provider.checkInput?.(input);
  const config=await client.$transaction(tx=>executionConfiguration(tx),transactionOptions);
- if(config.mode==='gemini'){
+ if(config.mode==='groq'){
   const request=providerRequest(input);
   if(Buffer.byteLength(JSON.stringify(request))>config.pilot.maxRequestBytes)throw new DomainError('PROVIDER_INPUT_LIMIT','Minimized provider input exceeds the approved byte ceiling. Use manual entry or a smaller CV.',422);
  }
@@ -147,7 +147,7 @@ async function selectProvider(client:PrismaClient,override?:AIProvider){
  const config=await client.$transaction(tx=>executionConfiguration(tx),transactionOptions);
  if(config.mode==='mock')return override??mockProvider;
  if(override){if(override.model!==config.pilot.model)throw new DomainError('AI_CONFIGURATION','Provider does not match approved model.',503);return override;}
- return createGeminiProvider({apiKey:process.env.GEMINI_API_KEY!,model:config.pilot.model,maxOutputTokens:config.pilot.maxOutputTokens,maxRequestBytes:config.pilot.maxRequestBytes});
+ return createGroqProvider({apiKey:process.env.GROQ_API_KEY!,model:config.pilot.model,maxOutputTokens:config.pilot.maxOutputTokens,maxRequestBytes:config.pilot.maxRequestBytes});
 }
 export async function generateRoadmap(client:PrismaClient,claims:Claims,input:unknown,provider?:AIProvider){
  const started=Date.now();const body=generateSchema.parse(input);
@@ -184,6 +184,6 @@ export async function extractSkills(client:PrismaClient,claims:Claims,bytes:Uint
   await client.$transaction(async tx=>{await fence(tx,claims,op);await finishBeforeDeadline(tx,op,{code:candidates.length?'CANDIDATES_READY':'NO_EVIDENCE'});},transactionOptions);
   // A final access/consent check before temporary evidence delivery, including revoke/re-grant.
   await client.$transaction(async tx=>{await access(tx,claims,true);const c=await consent(tx,claims,'cv_extraction');if(c.sequence!==op.consentSequence)throw new DomainError('CONSENT_REQUIRED','Consent changed; extraction evidence has been discarded.',403);},transactionOptions);
-  return {code:candidates.length?'CANDIDATES_READY':'NO_EVIDENCE',operation:await operationStatus(client,claims,op.id),candidates:candidates.map(c=>({...c,candidateReference:signCandidate(claims,op.consentSequence,op.id,c.skillId,c.label)})),warnings:[...parsed.warnings,`${op.configurationVersion==='mock-v1'?'Mock':'Gemini'} extraction; synthetic inputs only. Review each candidate. Identification removal is limited and does not guarantee anonymity.`]};
+  return {code:candidates.length?'CANDIDATES_READY':'NO_EVIDENCE',operation:await operationStatus(client,claims,op.id),candidates:candidates.map(c=>({...c,candidateReference:signCandidate(claims,op.consentSequence,op.id,c.skillId,c.label)})),warnings:[...parsed.warnings,`${op.configurationVersion==='mock-v1'?'Mock':'Groq'} extraction; synthetic inputs only. Review each candidate. Identification removal is limited and does not guarantee anonymity.`]};
  }catch(error){const safe=safeError(error);await finishFailure(client,claims,op,safe);throw safe;}
 }

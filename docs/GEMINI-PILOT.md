@@ -1,4 +1,8 @@
-# Gemini controls — local synthetic pilot
+# Historical document — superseded by the local Groq demo
+
+The active Gemini adapter and setup command were removed on 11 October 2026 at the user's request. Use [GROQ-DEMO.md](GROQ-DEMO.md). The following record describes the previous implementation; do not use it to configure the current application.
+
+## Gemini controls — former local synthetic pilot
 
 The server workflow can select Gemini for CV extraction and roadmap generation. No live call has been made during this implementation. The running environment was not changed; it remains mock. Production rejects this synthetic pilot. An API key is insufficient to enable dispatch.
 

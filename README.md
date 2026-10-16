@@ -31,7 +31,7 @@ The demo uses a synthetic person and unreviewed content. Its scheduler is determ
 - Full roadmap schema/business validation, conservative synthetic activity/effort matching, atomic archive/replacement and unchecked new tasks. Failures leave the active plan and progress intact.
 - Current consent, session, invitation, planning and catalogue checks before dispatch and activation. Logout and consent withdrawal fence pending work.
 
-A server-side Gemini REST adapter is connected behind approved configuration, consent, catalogue and shared funding gates. Setting an API key or `AI_MODE=paid` cannot enable calls. The synthetic Gemini pilot and mock processing are rejected in production; participant admission remains closed. Live Gemini has not been tested. See [Gemini pilot controls](docs/GEMINI-PILOT.md) before configuring it.
+The live provider is now Groq (`openai/gpt-oss-20b`) for a local synthetic Free Plan assignment demo. Gemini dispatch was removed. Current consent, strict output validation and shared request limits remain; production rejects this demo and mock processing. See [Groq setup](docs/GROQ-DEMO.md). A key alone does not prove an account is on the Free Plan.
 
 ## Configure local Google + PostgreSQL testing
 
@@ -138,6 +138,6 @@ Create a private repository and commit this folder’s source. Include the lockf
 
 ## Next implementation milestone
 
-The local mock workflow and intercepted Gemini service tests are recorded in `docs/BUILD-STATUS.md`. Gemini selection, conservative currency reservation, configuration-bound consent and revocation fences are implemented. The supplied catalogue is still unreviewed and external model/pricing/funding/privacy approvals are absent, so the running configuration remains mock. Follow `docs/GEMINI-PILOT.md` only after those decisions and explicit live-test authorization. Intercepted tests cannot demonstrate live AI quality.
+The current local Groq and mock verification is recorded in `docs/BUILD-STATUS.md`. Configure the Free Plan demo with `docs/GROQ-DEMO.md`. The supplied catalogue remains synthetic and unreviewed; only local synthetic demonstration is permitted. Intercepted tests cannot demonstrate live AI quality or real Google OAuth.
 
 IT6070 still needs real professional/problem evidence, actual connected AI tests, costs/adoption, the four-page evidence PDF, an accessible repository and the narrated demo. Record this build and subsequent corrections in the AI-use declaration. See the specification for the weekly checkpoints.

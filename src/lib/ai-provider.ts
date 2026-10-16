@@ -6,7 +6,7 @@ import type { Profile, SkillEntry } from './types';
 export type ProviderInput={kind:'cv_extraction';text:string}|{kind:'roadmap_generation';profile:Pick<Profile,'hoursPerWeek'>;skills:Pick<SkillEntry,'canonicalSkillId'>[]};
 export interface AIProvider {readonly model:string;checkInput?(input:ProviderInput):void;respond(input:ProviderInput,signal:AbortSignal):Promise<unknown>}
 export class ProviderFailure extends DomainError {
- constructor(code:'PROVIDER_REFUSED'|'PROVIDER_INCOMPLETE'|'PROVIDER_UNAVAILABLE',public retryable=true){super(code,'The AI provider could not supply a complete valid response. Existing data is preserved.',502)}
+ constructor(code:'PROVIDER_REFUSED'|'PROVIDER_INCOMPLETE'|'PROVIDER_UNAVAILABLE',public retryable=true,public readonly providerStatus?:number){super(code,providerStatus===401?'Groq rejected the server API key (HTTP 401). Check GROQ_API_KEY and restart the application. Existing data is preserved.':'The AI provider could not supply a complete valid response. Existing data is preserved.',502)}
 }
 export const mockProvider:AIProvider={model:'mock-fixture-v1',async respond(input,signal){
  mockConfiguration();signal.throwIfAborted();
