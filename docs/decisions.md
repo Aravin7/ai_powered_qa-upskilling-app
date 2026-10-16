@@ -2,6 +2,12 @@
 
 3 October 2026 · Current behavior is in `../specs.md`; this file records provenance and rationale. A historical entry never overrides current requirements.
 
+## PDF regression setup — 16 October 2026
+
+- Investigated the historical browser upload 503 on `codex/fix-pdf-upload` from merged main `31fe9e5`. Authenticated real-parser HTTP and complete browser journeys passed with synthetic data and mock AI; the historical intermittent error did not reproduce, so no application root-cause correction is claimed.
+- Separate server readiness/compilation from learner-operation timing: use the small Auth.js providers endpoint, a bounded three-minute cold-start allowance, and explicit landing-page warmup. Wait for actual consent responses before asserting UI persistence. These are test setup/synchronization changes; application deadlines, retries, validation, quota and funding controls are unchanged.
+- Added an independent request-only multipart regression to distinguish server-route/parser behavior from Chromium and frontend timing. It checks real parsing, unchanged committed inventory, malformed recovery and attempt accounting. Temporary diagnostics were removed; no persistent CV/content logging was added.
+
 ## Groq replacement for the local assignment demo — 11 October 2026
 
 - User selected Groq Free Plan with `openai/gpt-oss-20b` and requested Gemini removal. Active Gemini code, setup command and configuration template are removed; applied migrations and historical evidence remain to preserve database history.

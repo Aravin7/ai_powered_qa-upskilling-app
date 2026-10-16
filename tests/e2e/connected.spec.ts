@@ -11,6 +11,11 @@ test.beforeAll(async({request})=>{
  expect((await request.get('/api/me')).status()).toBe(401);
  expect((await request.get('/api/auth/providers')).status()).toBe(200);
 });
+test.beforeAll(async({request})=>{
+ if(process.env.RUN_AUTHENTICATED_E2E!=='true')return;
+ test.setTimeout(120000);
+ expect((await request.get('/')).status()).toBe(200);
+});
 test('connected authenticated mock workflow: PDF review, plan, progress, fallback and status',async({page,context})=>{
  test.skip(process.env.RUN_AUTHENTICATED_E2E!=='true','Requires isolated TEST_DATABASE_URL and a simulated signed session; Google OAuth is not exercised.');
  test.setTimeout(90000);
@@ -33,11 +38,19 @@ test('connected authenticated mock workflow: PDF review, plan, progress, fallbac
   await expect(page.getByRole('status').filter({hasText:'Profile saved'})).toBeVisible();
   expect((await client.profile.findUniqueOrThrow({where:{userId:user.id}})).confirmed).toBe(true);
   await page.getByRole('button',{name:'Privacy & settings',exact:true}).click();
-  await page.getByRole('switch',{name:'Optional CV skill extraction'}).click();await expect(page.getByRole('switch',{name:'Optional CV skill extraction'})).toBeChecked();
-  await page.getByRole('switch',{name:'Learning roadmap generation'}).click();await expect(page.getByRole('switch',{name:'Learning roadmap generation'})).toBeChecked();
+  for(const purpose of ['Optional CV skill extraction','Learning roadmap generation']){
+   const saved=page.waitForResponse(response=>response.url().endsWith('/api/consent')&&response.request().method()==='PUT');
+   await page.getByRole('switch',{name:purpose}).click();
+   expect((await saved).status()).toBe(200);
+   await expect(page.getByRole('switch',{name:purpose})).toBeChecked();
+  }
   await page.getByRole('button',{name:'My skills',exact:true}).click();
   await page.getByLabel('Choose synthetic PDF').setInputFiles({name:'synthetic.pdf',mimeType:'application/pdf',buffer:Buffer.from(syntheticPdf())});
+  const extracted=page.waitForResponse(response=>response.url().endsWith('/api/cv/extract')&&response.request().method()==='POST');
   await page.getByRole('button',{name:'Extract candidate skills'}).click();
+  const extraction=await extracted;
+  expect(await extraction.json()).toMatchObject({code:'OK',data:{code:'CANDIDATES_READY'}});
+  expect(extraction.status()).toBe(200);
   await expect(page.getByRole('heading',{name:'Temporary evidence · review before confirming'})).toBeVisible({timeout:15000});
   expect(await client.confirmedSkill.count({where:{userId:user.id}})).toBe(0);
   await page.getByRole('button',{name:'Confirm skills',exact:true}).click();await expect(page.getByRole('status').filter({hasText:'Skills confirmed'})).toBeVisible();
