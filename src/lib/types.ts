@@ -4,4 +4,5 @@ export type Purpose = 'cv_extraction' | 'roadmap_generation';
 export type ConsentState = Record<Purpose, boolean>;
 export type Task = { id: string; week: number; kind: 'learning' | 'practical'; title: string; activity: string; completionCriterion: string; skillIds: string[]; resourceIds: string[]; estimatedMinutes: number; completed: boolean; revision: number };
 export type Roadmap = { id: string; inputRevision: number; catalogueVersion: string; createdAt: string; tasks: Task[]; deferredSkillIds: string[] };
-export type AppState = { name: string; profile: Profile; skills: SkillEntry[]; consents: ConsentState; roadmap: Roadmap | null; archivedRoadmaps: Roadmap[] };
+export type ProcessingDisclosure={mode:'mock'|'groq'|'disabled';policyVersion:string;provider:string;notice:string};
+export type AppState = { name: string; profile: Profile; skills: SkillEntry[]; consents: ConsentState; roadmap: Roadmap | null; archivedRoadmaps: Roadmap[]; processing?:ProcessingDisclosure };

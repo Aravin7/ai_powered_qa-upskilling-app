@@ -99,6 +99,8 @@ model AIOperation {
   attempts Int @default(0)
   roadmapId String?
   dispatches AIAttempt[]
+  configurationVersion String @default("mock-v1")
+  budgetId String?
   @@unique([userId, kind, key])
 }
 model AIAttempt {
@@ -119,6 +121,8 @@ model FundingBudget {
   ceiling Int
   reserved Int @default(0)
   expiresAt DateTime
+  enabled Boolean @default(true)
+  configuration Json?
   attempts AIAttempt[]
 }
 model RoadmapTask {

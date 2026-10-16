@@ -2,6 +2,22 @@
 
 3 October 2026 · Current behavior is in `../specs.md`; this file records provenance and rationale. A historical entry never overrides current requirements.
 
+## Groq replacement for the local assignment demo — 11 October 2026
+
+- User selected Groq Free Plan with `openai/gpt-oss-20b` and requested Gemini removal. Active Gemini code, setup command and configuration template are removed; applied migrations and historical evidence remain to preserve database history.
+- Reuse database leases, quota, configuration-bound consent, two-attempt recovery, deadlines and atomic replacement. A free-demo request counter replaces paid monetary reservations: 20 attempts/seven days initially, shared across users; no counter reset or automatic refund. Groq's account tier cannot be verified by the inference API, so configuration explicitly requires operator Free Plan confirmation. No paid adapter/fallback is present.
+- The authorized academic demo uses synthetic inputs and the existing visibly unreviewed catalogue locally. This scoped exception does not approve real participants, catalogue publication or production admission. Authentication, ownership, transient processing, output validation and purpose consent remain; removing those would not solve the billing obstacle.
+- Direct Groq REST uses strict JSON schemas, no tools/SDK retries, low reasoning effort and bounded completion/request sizes. Rate-limit responses stop for deliberate recovery rather than immediately consuming another attempt. Official structured-output, API, billing and data-control documentation was checked on 11 October 2026; account settings/live quality require actual evidence.
+
+## Historical Gemini dispatch controls — 11 October 2026
+
+- User requested a new branch and completion of Gemini controls; created `codex/gemini-dispatch-controls` from merged main `2f86215`. Live test spending and provider privacy terms remain unapproved; no running environment or actual provider settings were changed.
+- Connected server adapter selection to a strict private configuration and reviewed-catalogue gate. Synthetic Gemini mode is local only. Fixed model, verified prices, validity period, funding ceiling and accurate disclosure are operator-supplied facts, not defaults. Incomplete example configuration fails closed.
+- Reserve USD micro-units using the verified full model input maximum plus bounded output at conservative upper-band prices. Approximate characters/token heuristics cannot prove a safe financial bound. This over-reserves, may limit usefulness and does not claim actual billed cost; no automatic reconciliation/refund is implemented.
+- Configuration hash also versions purpose-specific consent and operations. Model, pricing, expiry or notice changes require new consent and prevent stale activation. Shared budget revocation is rechecked under a database lock at dispatch and commit. Existing one-operation, shared quota, retry, deadline and atomic replacement invariants remain.
+- Direct REST GenerateContent structured output was checked against current official Google documentation. Transport, billing assumptions and semantic quality still require separately authorized live evidence. Tests use synthetic prices, test-local review state and intercepted HTTP; these are not provider or professional approvals.
+- Integration runner timeout is 15 seconds to accommodate the unchanged eight-second real parser deadline plus database work. Application deadlines and assertion behavior were not relaxed, and no blanket retries were added.
+
 ## Approved product decisions
 
 - Five MVP recommendations were applied following Aravin's “fix it”; G1–G10 defaults were approved by “ok.”

@@ -1,8 +1,8 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
-import { mockConfiguration } from './ai-config';
+import { signingSecret } from './ai-config';
 import type { Claims } from './store';
-export function fingerprint(value:string|Uint8Array){return createHmac('sha256',mockConfiguration().secret).update(value).digest('hex')}
+export function fingerprint(value:string|Uint8Array){return createHmac('sha256',signingSecret()).update(value).digest('hex')}
 const payloadSchema=z.object({owner:z.string(),session:z.number().int(),consent:z.number().int(),operation:z.string().uuid(),binding:z.string(),expires:z.number()}).strict();
 export function signCandidate(claims:Claims,consent:number,operation:string,skillId:string|null,label:string){
  const payload=Buffer.from(JSON.stringify({owner:claims.id,session:claims.sessionVersion,consent,operation,binding:fingerprint(JSON.stringify([skillId,label])),expires:Date.now()+15*60*1000})).toString('base64url');

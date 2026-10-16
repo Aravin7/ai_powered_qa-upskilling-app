@@ -1,6 +1,7 @@
 import type { PrismaClient, Prisma } from '../generated/prisma/client';
 import { catalogue } from './catalogue';
-import { DomainError, assertRevision, consentSchema, inventorySchema, profileSchema, reviewInventory, sameInventory, taskSchema, POLICY_VERSION } from './domain';
+import { DomainError, assertRevision, consentSchema, inventorySchema, profileSchema, reviewInventory, sameInventory, taskSchema } from './domain';
+import { processingDisclosure } from './ai-execution';
 import type { AppState, SkillEntry } from './types';
 import { verifyCandidate } from './candidate-origin';
 export type Claims = { id: string; email: string; sessionVersion: number };
@@ -38,8 +39,9 @@ export async function getState(client:PrismaClient,claims:Claims):Promise<AppSta
    tx.roadmap.findFirst({where:{userId:user.id,status:'active'},include:{tasks:{orderBy:{position:'asc'}}}})
   ]);
   const current={cv_extraction:false,roadmap_generation:false};
-  for(const c of consents)if(c.purpose in current)current[c.purpose as keyof typeof current]=c.policyVersion===POLICY_VERSION&&c.granted;
-  return {name:user.name,profile:{currentRole:p.currentRole,yearsExperience:p.yearsExperience,hoursPerWeek:p.hoursPerWeek,confirmed:p.confirmed,inventoryConfirmed:p.inventoryConfirmed,planningRevision:p.planningRevision},skills:skills.map(s=>({key:s.key,canonicalSkillId:s.canonicalSkillId,label:s.label,source:s.source as SkillEntry['source']})),consents:current,roadmap:roadmap?{id:roadmap.id,inputRevision:roadmap.inputRevision,catalogueVersion:roadmap.catalogueVersion,createdAt:roadmap.createdAt.toISOString(),deferredSkillIds:roadmap.deferredSkillIds,tasks:roadmap.tasks.map(t=>({id:t.id,week:t.week,kind:t.kind as 'learning'|'practical',title:t.title,activity:t.activity,completionCriterion:t.completionCriterion,skillIds:t.skillIds,resourceIds:t.resourceIds,estimatedMinutes:t.estimatedMinutes,completed:t.completed,revision:t.revision}))}:null,archivedRoadmaps:[]};
+  const processing=await processingDisclosure(tx);
+  for(const c of consents)if(c.purpose in current)current[c.purpose as keyof typeof current]=c.policyVersion===processing.policyVersion&&c.granted;
+  return {processing,name:user.name,profile:{currentRole:p.currentRole,yearsExperience:p.yearsExperience,hoursPerWeek:p.hoursPerWeek,confirmed:p.confirmed,inventoryConfirmed:p.inventoryConfirmed,planningRevision:p.planningRevision},skills:skills.map(s=>({key:s.key,canonicalSkillId:s.canonicalSkillId,label:s.label,source:s.source as SkillEntry['source']})),consents:current,roadmap:roadmap?{id:roadmap.id,inputRevision:roadmap.inputRevision,catalogueVersion:roadmap.catalogueVersion,createdAt:roadmap.createdAt.toISOString(),deferredSkillIds:roadmap.deferredSkillIds,tasks:roadmap.tasks.map(t=>({id:t.id,week:t.week,kind:t.kind as 'learning'|'practical',title:t.title,activity:t.activity,completionCriterion:t.completionCriterion,skillIds:t.skillIds,resourceIds:t.resourceIds,estimatedMinutes:t.estimatedMinutes,completed:t.completed,revision:t.revision}))}:null,archivedRoadmaps:[]};
  },{isolationLevel:'RepeatableRead'});
 }
 export async function putProfile(client:PrismaClient,claims:Claims,input:unknown) {
@@ -58,11 +60,12 @@ export async function putSkills(client:PrismaClient,claims:Claims,input:unknown)
   const rows=await tx.confirmedSkill.findMany({where:{userId:claims.id}});
   const old:SkillEntry[]=rows.map(s=>({key:s.key,canonicalSkillId:s.canonicalSkillId,label:s.label,source:s.source as SkillEntry['source']}));
   const consent=await tx.consent.findFirst({where:{userId:claims.id,purpose:'cv_extraction'},orderBy:{sequence:'desc'}});
+  const policyVersion=(await processingDisclosure(tx)).policyVersion;
   const next=reviewInventory(old,body).map(s=>{
    if(old.some(o=>o.key===s.key))return s;
    const submitted=body.entries.find(e=>e.canonicalSkillId===s.canonicalSkillId&&e.label===s.label);
    if(submitted?.candidateReference){
-    if(!consent?.granted||consent.policyVersion!==POLICY_VERSION||!verifyCandidate(submitted.candidateReference,claims,consent.sequence,s.canonicalSkillId,s.label))throw new DomainError('CANDIDATE_EXPIRED','Candidate reference expired or changed. Review it as manual entry before saving.',409);
+    if(!consent?.granted||consent.policyVersion!==policyVersion||!verifyCandidate(submitted.candidateReference,claims,consent.sequence,s.canonicalSkillId,s.label))throw new DomainError('CANDIDATE_EXPIRED','Candidate reference expired or changed. Review it as manual entry before saving.',409);
     return {...s,source:'cv' as const};
    }return s;
   });const changed=!sameInventory(old,next)||!p.inventoryConfirmed;
@@ -76,7 +79,7 @@ export async function putSkills(client:PrismaClient,claims:Claims,input:unknown)
 }
 export async function putConsent(client:PrismaClient,claims:Claims,input:unknown){
  const body=consentSchema.parse(input);
- await client.$transaction(async tx=>{await access(tx,claims,true);await tx.consent.create({data:{...body,userId:claims.id}});if(!body.granted)await tx.aIOperation.updateMany({where:{userId:claims.id,kind:body.purpose,state:'running'},data:{state:'cancelled',code:'CONSENT_REQUIRED'}});});
+ await client.$transaction(async tx=>{await access(tx,claims,true);const disclosure=await processingDisclosure(tx);if(body.granted&&(disclosure.mode==='disabled'||body.policyVersion!==disclosure.policyVersion))throw new DomainError('CONSENT_REQUIRED','Read and accept the current provider notice before granting consent.',403);await tx.consent.create({data:{...body,userId:claims.id}});if(!body.granted)await tx.aIOperation.updateMany({where:{userId:claims.id,kind:body.purpose,state:'running'},data:{state:'cancelled',code:'CONSENT_REQUIRED'}});});
  return getState(client,claims);
 }
 export async function endSession(client:PrismaClient,claims:Claims){
