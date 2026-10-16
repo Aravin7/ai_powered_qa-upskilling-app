@@ -47,7 +47,7 @@ export function saveProfile(state:AppState, input:unknown):AppState {
  return {...state,profile:{...state.profile,currentRole:body.currentRole,yearsExperience:body.yearsExperience,hoursPerWeek:body.hoursPerWeek,confirmed:true,planningRevision:state.profile.planningRevision+(changed?1:0)}};
 }
 export function assertRevision(actual:number,expected:number) {if(actual!==expected)throw new DomainError('STALE_INPUT','Your saved data changed. Refresh before saving these edits.',409);}
-export function validatePlan(input:unknown,profile:Profile,skills:SkillEntry[]) {
+export function validatePlan(input:unknown,profile:Pick<Profile,'hoursPerWeek'>,skills:SkillEntry[]) {
  const plan=planSchema.parse(input);
  const {gaps}=compare(skills); const gapIds=new Set<string>(gaps.map(s=>s.id));
  const known = new Set<string>(skills.flatMap(s=>s.canonicalSkillId?[s.canonicalSkillId]:[]));

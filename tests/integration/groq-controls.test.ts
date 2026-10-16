@@ -76,6 +76,23 @@ it('GR-06 / R07/R11: invalid outputs consume both reservations and preserve old 
  expect((await first.fundingBudget.findUniqueOrThrow({where:{id:budgetId}})).reserved).toBe(3);
  vi.stubGlobal('fetch',vi.fn(async()=>response(proposal())));const recovered=await generateRoadmap(first,claims,request());expect(recovered.state.roadmap!.id).not.toBe(preserved.id);expect(recovered.state.roadmap!.tasks.every(task=>!task.completed)).toBe(true);
 });
+it('GR-16a / R07/R11: a false infeasibility claim gets one bounded correction attempt',async()=>{
+ const infeasible={outcome:'infeasible',reason:'No schedule',constraintCode:'undetermined',deferredSkillIds:[],tasks:[]};
+ const http=vi.fn().mockResolvedValueOnce(response(infeasible)).mockResolvedValueOnce(response(proposal()));vi.stubGlobal('fetch',http);
+ const saved=await generateRoadmap(first,claims,request());
+ expect(saved.code).toBe('PLAN_SAVED');expect(saved.state.roadmap?.tasks).toHaveLength(5);
+ expect(http).toHaveBeenCalledTimes(2);expect((await first.fundingBudget.findUniqueOrThrow({where:{id:budgetId}})).reserved).toBe(2);
+});
+it('GR-16b / R07/R11: two false infeasibility claims retain the prior plan and progress',async()=>{
+ vi.stubGlobal('fetch',vi.fn(async()=>response(proposal())));const original=await generateRoadmap(first,claims,request());
+ await patchTask(first,claims,original.state.roadmap!.tasks[0].id,{completed:true,expectedTaskRevision:0});
+ const infeasible={outcome:'infeasible',reason:'No schedule',constraintCode:'undetermined',deferredSkillIds:[],tasks:[]};
+ const http=vi.fn(async()=>response(infeasible));vi.stubGlobal('fetch',http);
+ await expect(generateRoadmap(first,claims,request())).rejects.toMatchObject({code:'INVALID_OUTPUT'});
+ expect(http).toHaveBeenCalledTimes(2);
+ const preserved=(await getState(first,claims)).roadmap!;expect(preserved.id).toBe(original.state.roadmap!.id);expect(preserved.tasks[0].completed).toBe(true);
+ expect((await first.fundingBudget.findUniqueOrThrow({where:{id:budgetId}})).reserved).toBe(3);
+});
 it('GR-07 / R11: revocation from another instance during dispatched work prevents late activation without refund',async()=>{
  vi.stubGlobal('fetch',vi.fn(async()=>{await second.fundingBudget.update({where:{id:budgetId},data:{enabled:false}});return response(proposal());}));
  await expect(generateRoadmap(first,claims,request())).rejects.toMatchObject({code:'FUNDING_STOP'});

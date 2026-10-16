@@ -140,6 +140,6 @@ Create a private repository and commit this folder’s source. Include the lockf
 
 ## Next implementation milestone
 
-The current local Groq and mock verification is recorded in `docs/BUILD-STATUS.md`. Configure the Free Plan demo with `docs/GROQ-DEMO.md`. The supplied catalogue remains synthetic and unreviewed; only local synthetic demonstration is permitted. Intercepted tests cannot demonstrate live AI quality or real Google OAuth.
+The current local Groq and mock verification is recorded in `docs/BUILD-STATUS.md`. Configure the Free Plan demo with `docs/GROQ-DEMO.md`. The supplied catalogue remains synthetic and unreviewed; only local synthetic demonstration is permitted. One authorized live synthetic extraction and roadmap rerun passed on 17 October 2026; intercepted tests and that single live sample do not establish repeatable AI quality or real Google OAuth.
 
 IT6070 still needs real professional/problem evidence, actual connected AI tests, costs/adoption, the four-page evidence PDF, an accessible repository and the narrated demo. Record this build and subsequent corrections in the AI-use declaration. See the specification for the weekly checkpoints.

@@ -1,4 +1,23 @@
-# Build status — 16 October 2026 · IT6070
+# Build status — 17 October 2026 · IT6070
+
+## Groq roadmap recovery and live rerun — 17 October 2026
+
+On `codex/live-groq-smoke-evidence` from merged main `a7138ff`, the first authorized live synthetic run below showed a false infeasibility claim for a five-hour learner with three confirmed QA skills. The synthetic catalogue actually admits a five-week plan: the five missing skills each fit in one week, prerequisites are confirmed or precede their dependents, and the last task can be practical. The server now verifies that conservative one-task-per-week witness with the existing full plan validator, passes its compact ordering to Groq, and treats an infeasibility claim despite that witness as invalid output eligible for at most one accounted correction attempt. It never saves the witness instead of a model proposal. The user-facing unverified-infeasibility message is provider-neutral. Prompt provenance advanced to `qa-pathway-v3`.
+
+Focused mocked checks: `tests/integration/groq-controls.test.ts` **14 Passed** against isolated PostgreSQL, including false-infeasible → valid recovery in two reservations and two false responses retaining an old completed plan; `tests/ai.test.ts` plus `tests/qa-coverage.test.ts` **56 Passed**, including the witness and duration boundary. `npm run typecheck` **Passed** after a nullable-ID typing fix. Targeted ESLint of six changed source/test files **Passed**. These checks do not stand in for live model behavior.
+
+After those checks, one authorized live synthetic rerun of `npm run test:live:groq` on the same isolated `qa_groq_demo` database **Passed** (exit 0): real Groq extraction returned and confirmed Test design, API testing and Test automation; `openai/gpt-oss-20b` returned a validated five-task roadmap; completion of the first task survived server reload. Exactly **two attempts** were reserved in that rerun, one per feature, with no correction attempt needed. The runner removed its disposable learner; the shared request counter retained consumption. This is one successful end-to-end live sample, not proof of repeatability, professional semantic quality, real Google OAuth, production readiness or provider retention. The user's Google sign-in was explicitly outside this task.
+
+## Live Groq synthetic smoke — 16 October 2026
+
+On clean merged main `a7138ff` (PR #3), the user explicitly authorized the optional live synthetic test. The ignored local `.env` held a server-side key with the expected `gsk_` prefix and an operator Free Plan confirmation; its normal `AI_MODE` remained `mock`. The dedicated runner selected Groq only for its process, used fixed model `openai/gpt-oss-20b`, a generated synthetic PDF and identity, and the isolated `qa_groq_demo` PostgreSQL 18.4 database on localhost:55437. All four migrations were already applied. No key or provider response content was logged or committed. The runner's separate 20-request allowance retains consumed attempts; its disposable learner was cleaned up and the isolated database helper stopped.
+
+| Live case | Expected | Actual / status |
+| --- | --- | --- |
+| GR-L1: CV extraction and confirmation | Real provider returns three evidence-supported candidates from the synthetic PDF; confirmation persists them | **Passed**: Test design, API testing and Test automation were returned and confirmed. This verifies one real Groq extraction, not Google OAuth. |
+| GR-L2: roadmap generation | A valid 4–12-week roadmap within five hours/week saves and task completion survives reload | **Failed**: `UNVERIFIED_INFEASIBLE`; no roadmap or completed task was saved for this new synthetic learner. The provider's infeasibility claim was not accepted as proof that a feasible plan is impossible. |
+
+Command: `npm run test:live:groq` with `RUN_LIVE_GROQ_TESTS=true`, `TEST_DATABASE_URL` set only to `qa_groq_demo`, and pinned Node 24.19.0. Exit code **1**; the runner reported **two reserved provider attempts total** (one extraction, one roadmap). The earlier HTTP 401 did not recur for extraction with the current key. No automatic repeat was made before the 17 October correction above. At this checkpoint the `UNVERIFIED_INFEASIBLE` message said “mock provider” even in Groq mode; that wording has since been corrected. The provider's private rationale was not retained, so this run does not establish why it proposed infeasibility. Real Google sign-in, professional roadmap quality, account-tier verification, provider retention, and production admission remain unverified. This live result superseded only the earlier statement that no successful real extraction had been observed; historical mocked results below remain labelled as such.
 
 ## PDF upload investigation and regression — 16 October 2026
 

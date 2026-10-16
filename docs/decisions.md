@@ -2,6 +2,12 @@
 
 3 October 2026 · Current behavior is in `../specs.md`; this file records provenance and rationale. A historical entry never overrides current requirements.
 
+## Groq roadmap feasibility witness — 17 October 2026
+
+- A live synthetic five-hour roadmap request returned an unverified infeasibility claim although the versioned synthetic catalogue allows five ordered one-skill weeks. Add only a conservative witness that passes the full server plan validator, so the model sees a feasible ordering without the server substituting its own roadmap for AI output.
+- When that witness exists, classify a model infeasibility claim as invalid output; the existing two-attempt operation budget allows one accounted correction, and repeated failure preserves the active plan and progress. Cases without a validated witness keep the earlier controlled unverified-infeasibility behavior. Bump prompt provenance to `qa-pathway-v3`; no quota, funding, deadline, catalogue or consent relaxation.
+- Focused mocked PostgreSQL tests passed and one live synthetic Groq rerun saved a valid five-task plan. One live sample does not establish general semantic quality; professional review and real participant admission remain separate gates. Google sign-in was explicitly excluded from this task.
+
 ## PDF regression setup — 16 October 2026
 
 - Investigated the historical browser upload 503 on `codex/fix-pdf-upload` from merged main `31fe9e5`. Authenticated real-parser HTTP and complete browser journeys passed with synthetic data and mock AI; the historical intermittent error did not reproduce, so no application root-cause correction is claimed.

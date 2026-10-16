@@ -6,6 +6,20 @@ import type { Profile, SkillEntry } from './types';
 export const extractionSchema=z.object({skills:z.array(z.object({skillId:z.string().max(80).nullable(),label:z.string().trim().min(1).max(100),evidenceExcerpt:z.string().trim().min(1).max(400)}).strict()).max(AI_LIMITS.candidates)}).strict();
 export const infeasibleSchema=z.object({outcome:z.literal('infeasible'),reason:z.string().trim().min(1).max(600),constraintCode:z.enum(['duration_policy','capacity','prerequisite_or_content','undetermined']),tasks:z.array(z.never()).length(0),deferredSkillIds:z.array(z.never()).length(0)}).strict();
 export const roadmapOutputSchema=z.union([planSchema,infeasibleSchema]);
+// A server-validated witness only establishes that at least one schedule exists.
+// It is never activated in place of a provider proposal.
+export function oneTaskPerWeekWitness(hoursPerWeek:number,confirmedSkillIds:readonly string[]){
+ const confirmed=new Set(confirmedSkillIds);
+ const gaps=catalogue.skills.filter(skill=>!confirmed.has(skill.id));
+ if(gaps.length<4||gaps.length>12)return null;
+ const tasks=gaps.map((skill,index)=>({week:index+1,kind:index===gaps.length-1?'practical' as const:'learning' as const,
+  title:skill.label,activity:skill.activity,completionCriterion:skill.outcome,skillIds:[skill.id],resourceIds:[...skill.resourceIds],estimatedMinutes:skill.minutes}));
+ const inventory:SkillEntry[]=catalogue.skills.filter(skill=>confirmed.has(skill.id)).map(skill=>({key:`id:${skill.id}`,canonicalSkillId:skill.id,label:skill.label,source:'manual'}));
+ try{
+  validatePlan({outcome:'plan',reason:null,constraintCode:null,deferredSkillIds:[],tasks},{hoursPerWeek},inventory);
+  return tasks.map(task=>({week:task.week,skillId:task.skillIds[0],estimatedMinutes:task.estimatedMinutes,kind:task.kind}));
+ }catch{return null;}
+}
 export function containsSkill(text:string,label:string){
  const term=normalizeLabel(label).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
  return new RegExp(`(?:^|[^\\p{L}\\p{N}])${term}(?:$|[^\\p{L}\\p{N}])`,'u').test(normalizeLabel(text));
@@ -56,11 +70,13 @@ export function validateExtraction(input:unknown,text:string){
 export function validateRoadmapOutput(input:unknown,profile:Profile,skills:SkillEntry[]){
  const output=roadmapOutputSchema.parse(input);
  if(output.outcome==='infeasible'){
+  if(oneTaskPerWeekWitness(profile.hoursPerWeek,skills.flatMap(skill=>skill.canonicalSkillId?[skill.canonicalSkillId]:[])))
+   throw new DomainError('INVALID_OUTPUT','Provider declared infeasible despite a valid catalogue schedule. Existing plan preserved.',502);
   // Only independently demonstrable aggregate capacity is reported as a constraint.
   const known=new Set(skills.map(s=>s.canonicalSkillId));
   const mandatory=catalogue.skills.filter(s=>!known.has(s.id)&&s.priority!=='nice').reduce((n,s)=>n+s.minutes,0);
   if(output.constraintCode==='capacity'&&mandatory>profile.hoursPerWeek*60*12)throw new DomainError('CAPACITY','Required work exceeds twelve weeks at this availability. Existing plan preserved.',422);
-  throw new DomainError('UNVERIFIED_INFEASIBLE','The mock provider did not produce a valid schedule. This does not prove that no feasible plan exists. Existing plan preserved.',502);
+  throw new DomainError('UNVERIFIED_INFEASIBLE','The provider did not produce a valid schedule. This does not prove that no feasible plan exists. Existing plan preserved.',502);
  }
  const plan=validatePlan(output,profile,skills);
  // Synthetic catalogue semantic gate: full, unsplit activities must agree with its honest effort and outcome.
