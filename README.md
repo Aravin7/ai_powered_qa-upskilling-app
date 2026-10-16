@@ -116,6 +116,8 @@ The test runner creates temporary secrets, synthetic invited records, mock budge
 
 The integration command deliberately fails with `BLOCKED` if `TEST_DATABASE_URL` is missing. It never silently substitutes the application database. Tests create unique synthetic identities and clean up only their own records. See `docs/BUILD-STATUS.md` for observed results and limitations.
 
+With the authenticated test environment above enabled, run `npm run test:e2e -- tests/e2e/cv-upload-api.spec.ts` for the request-only multipart/real-parser regression, and `npm run test:e2e -- tests/e2e/connected.spec.ts` for the full browser journey. Both use mock AI. The runner checks `/api/auth/providers` for readiness with a three-minute cold-start allowance; browser-page compilation is warmed separately before the timed connected journey. No Google OAuth or external AI request is made by these tests.
+
 `npm run db:migrate` creates development migrations; `npm run db:deploy` applies committed migrations. Review migrations before using them on a valued database. `npm run catalogue:validate -- --production` rejects the synthetic catalogue.
 
 ## Build and source layout

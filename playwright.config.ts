@@ -18,5 +18,6 @@ export default defineConfig({
  testDir: './tests/e2e', fullyParallel: false, workers:1,
  use: { baseURL: e2eOrigin, trace: 'retain-on-failure', screenshot:'only-on-failure', launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH, args: ['--no-sandbox','--disable-dev-shm-usage'] } : {} },
  projects: [{name:'chromium', use:{...devices['Desktop Chrome']}}],
- webServer: { command: `npm run dev -- --port ${e2ePort}`, url: e2eOrigin, reuseExistingServer: !process.env.CI&&process.env.RUN_AUTHENTICATED_E2E!=='true', timeout: 120000 }
+ // Cold Next.js compilation is harness setup, separate from operation and journey deadlines.
+ webServer: { command: `npm run dev -- --port ${e2ePort}`, url: `${e2eOrigin}/api/auth/providers`, reuseExistingServer: !process.env.CI&&process.env.RUN_AUTHENTICATED_E2E!=='true', timeout: 180000 }
 });

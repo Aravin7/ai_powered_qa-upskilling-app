@@ -1,6 +1,26 @@
-# Build status — 11 October 2026 · IT6070 Week 3
+# Build status — 16 October 2026 · IT6070
 
-## Current Groq replacement checkpoint — 11 October 2026
+## PDF upload investigation and regression — 16 October 2026
+
+Branch `codex/fix-pdf-upload`, based on merged main `31fe9e5` (PR #2), with a clean working tree at task start. Checks cover that commit plus the branch's test harness/regression changes. No application runtime change was needed to obtain the passing runs below. The previous intermittent upload `SERVICE_UNAVAILABLE` could not be reproduced; its cause is still unconfirmed and is not claimed fixed.
+
+The runner now checks readiness using `/api/auth/providers`, allows three minutes for cold development-server startup, and warms the landing page separately before the timed browser journey. The connected test waits for consent-save responses, asserts HTTP 200, then checks the saved switches; it also asserts the extraction response before inspecting candidates. A new request-only Playwright regression exercises real authenticated multipart upload without Chromium, real PDF parsing, confirmation-required inventory preservation and malformed-input recovery. No blanket retries, assertion weakening, external provider calls or application deadline changes were introduced.
+
+Environment: Windows/PowerShell, pinned Node 24.19.0, PostgreSQL 18.4 bound to localhost port 55437; new isolated database `qa_pdf_upload_20261016`, all four migrations applied only there. Separate Next.js dev port 31347, Chrome, synthetic signed Auth.js identities, mock AI and generated synthetic PDF. About 570 MB of RAM was available during diagnosis; slow-filesystem warnings and cold compilation affected setup. Actual `.env`, credentials and the personal/application database were not changed.
+
+| Check / requirement | Expected | Observed |
+| --- | --- | --- |
+| CV-01 / R04-R05, request-only regression | Valid multipart PDF yields evidence-supported review candidates without committing extraction into inventory | **Passed**: HTTP 200, `CANDIDATES_READY`, Test design/API testing/Test automation; existing single manual skill retained; one reserved attempt |
+| CV-03 / R04-R05, recovery assertions in the same regression | Malformed upload returns controlled rejection, preserves inventory/origin and consumes no provider attempt | **Passed**: HTTP 422 `PDF_MALFORMED`; original manual API testing entry retained; attempt count stays one |
+| Connected browser workflow / T03-T09,T14 | Profile → separate consents → PDF → confirmation → plan → completion/reload → malformed fallback → logout | **Passed** in 30.5 seconds; three CV-origin skills confirmed, saved task check survives reload, malformed upload preserves inventory/progress, logout ends private API access |
+
+Execution: request-only `playwright test tests/e2e/cv-upload-api.spec.ts` **1 Passed** initially (1.4 minutes including setup) and **1 Passed** again after making saved profile values explicit and removing temporary diagnostics (nine-second test, two minutes including setup); connected `playwright test tests/e2e/connected.spec.ts` **1 Passed** (30.5-second test, 1.3 minutes including setup). This is two unique tests across separate runs, not three unique passes or a full browser-suite rerun. Both commands used `RUN_AUTHENTICATED_E2E=true`, the explicit isolated `TEST_DATABASE_URL`, `E2E_PORT=31347` and installed Chrome; the Node runtime directory was first on process `PATH`. No successful real Google OAuth or live Groq behavior is established by these runs.
+
+Earlier attempts: two 120-second and one 180-second server-startup timeouts before tests ran, plus one browser failure on the five-second consent-switch assertion while its save was still pending. A standalone native multipart probe passed. Temporary error-type/stack-only diagnostics showed only the expected malformed-PDF rejection in the final runs; diagnostics were removed. The final changes wait for actual saved responses and separate compilation from the learner journey. The 90-second journey allowance, 15-second extraction assertion, eight-second parser limit, 45-second operation deadline and quotas remain unchanged.
+
+Targeted lint **Passed**: `eslint playwright.config.ts tests/e2e/connected.spec.ts tests/e2e/cv-upload-api.spec.ts`. TypeScript `tsc --noEmit` **Passed**, including a final run after the fixture was made explicit. `git diff --check` passed, application source matches the starting commit, and test-generated `next-env.d.ts` changes are restored. The isolated PostgreSQL helper was stopped after testing. Historical unit, PostgreSQL integration and build passes below were not rerun for these test-only changes. Live Groq credentials/quality, real Google OAuth, professional catalogue review, broader reliability/stress, deployment, T13 measurement and provider/backup retention remain separate gates. In particular, this passing regression does not prove that the intermittent 503 is eliminated under all load conditions.
+
+## Historical Groq replacement checkpoint — 11 October 2026
 
 Tested base commit `72c4ff128315df2bfe544f81e4060930b02042f1` plus the uncommitted Groq replacement described here, on the existing `codex/gemini-dispatch-controls` branch. The tracked working tree was clean at the start. No branch switch, commit, push, merge or deployment was performed in this side conversation. The user edited the ignored local `.env`; this task did not print or commit its credentials or change its AI mode. Historical results below describe prior code.
 
