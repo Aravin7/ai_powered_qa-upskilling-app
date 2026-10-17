@@ -1,9 +1,10 @@
 import { catalogue } from './catalogue';
 import { compare, DomainError } from './domain';
-import { affirmativeEvidence, supportsCatalogueSkill } from './ai-output';
+import { candidateEvidence, evidenceClauses } from './ai-output';
+import type { CvBlock } from './cv-text';
 import { mockConfiguration } from './ai-config';
 import type { Profile, SkillEntry } from './types';
-export type ProviderInput={kind:'cv_extraction';text:string}|{kind:'roadmap_generation';profile:Pick<Profile,'hoursPerWeek'>;skills:Pick<SkillEntry,'canonicalSkillId'>[]};
+export type ProviderInput={kind:'cv_extraction';text:string;blocks?:CvBlock[];correction?:string}|{kind:'roadmap_generation';profile:Pick<Profile,'hoursPerWeek'>;skills:Pick<SkillEntry,'canonicalSkillId'>[]};
 export interface AIProvider {readonly model:string;checkInput?(input:ProviderInput):void;respond(input:ProviderInput,signal:AbortSignal):Promise<unknown>}
 export class ProviderFailure extends DomainError {
  constructor(code:'PROVIDER_REFUSED'|'PROVIDER_INCOMPLETE'|'PROVIDER_UNAVAILABLE',public retryable=true,public readonly providerStatus?:number){super(code,providerStatus===401?'Groq rejected the server API key (HTTP 401). Check GROQ_API_KEY and restart the application. Existing data is preserved.':'The AI provider could not supply a complete valid response. Existing data is preserved.',502)}
@@ -12,8 +13,11 @@ export const mockProvider:AIProvider={model:'mock-fixture-v1',async respond(inpu
  mockConfiguration();signal.throwIfAborted();
  if(input.kind==='cv_extraction'){
   const skills=catalogue.skills.flatMap(s=>{
-   const evidence=input.text.split('\n').map(x=>x.trim()).find(line=>line.length<=400&&affirmativeEvidence(line)&&supportsCatalogueSkill(line,s));
-   return evidence?[{skillId:s.id,label:s.label,evidenceExcerpt:evidence}]:[];
+   const blocks=input.blocks??input.text.split('\n').map((text,i)=>({id:`cv-${i+1}`,section:'uncertain' as const,text}));
+   for(const block of blocks)for(const excerpt of evidenceClauses(block.text)){
+    if(excerpt.length<=400&&candidateEvidence(block,excerpt,s))return [{skillId:s.id,label:s.label,evidenceExcerpt:excerpt,sourceId:block.id}];
+   }
+   return [];
   });return {skills};
  }
  const known=input.skills.map(s=>({key:`id:${s.canonicalSkillId}`,canonicalSkillId:s.canonicalSkillId,label:'',source:'manual' as const}));

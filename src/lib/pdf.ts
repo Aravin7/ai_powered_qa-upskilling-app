@@ -28,6 +28,7 @@ export async function readPdfUpload(req:Request){
  try{form=await new Response(Buffer.concat(chunks),{headers:{'Content-Type':req.headers.get('content-type')!}}).formData();}catch{throw new DomainError('INVALID_UPLOAD','Invalid multipart upload.');}
  if([...form.keys()].sort().join(',')!=='file,operationKey')throw new DomainError('INVALID_UPLOAD','Provide one PDF and one operation key.');
  const file=form.get('file');if(!(file instanceof File))throw new DomainError('INVALID_UPLOAD','Choose an actual PDF file.');
+ if(file.type!=='application/pdf')throw new DomainError('PDF_UNSUPPORTED','Choose a PDF with application/pdf content type. Manual entry remains available.',415);
  if(file.size>AI_LIMITS.bytes)throw new DomainError('PDF_BYTE_LIMIT','Use a PDF no larger than 2 MiB.',413);
  return {bytes:new Uint8Array(await file.arrayBuffer()),operationKey:form.get('operationKey')};
 }

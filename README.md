@@ -1,6 +1,6 @@
 # QA Pathway — Week 3 connected mock workflow
 
-A Next.js application for the QA-to-AI-assisted-testing pilot. The connected workflow uses an explicitly labelled **local mock provider**. This is not a live AI integration or production release. See `docs/BUILD-STATUS.md` for current verification limits.
+A Next.js application for the QA-to-AI-assisted-testing pilot. The connected workflow supports explicitly labelled local mock processing and the configured Groq synthetic demo. See `docs/BUILD-STATUS.md` for current verification limits; this is not a production release.
 
 ## Try the interface first
 

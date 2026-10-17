@@ -2,6 +2,18 @@
 
 3 October 2026 · Current behavior is in `../specs.md`; this file records provenance and rationale. A historical entry never overrides current requirements.
 
+## Temporary hourly quota override clarified — 17 October 2026
+
+- Aravin confirmed the current ten-attempt-per-hour source edit was deliberate for testing. It does not change the approved five-attempt R11/T11 requirement. Three full-suite integration assertions therefore remain Failed against this temporary override; they are not accidental-defect evidence. The override is currently in shared application code, not restricted to test mode. Preserve it for the ongoing test session and restore the five-attempt gate before claiming specification compliance.
+
+## CV evidence-context correction — 17 October 2026
+
+- Subsequent agreed amendments retain relevant section context and technology lists, exclude education/extracurricular/reference sections, redact detectable organization/project names, and warn about uncertain section classification and residual identifiers. Source blocks are transient and evidence excerpts are anchored to their full sentence context. Listed technologies begin unchecked; explicit learner confirmation lets them satisfy canonical comparison as self-report. No database migration or new provider is introduced. Prompt provenance advances to `qa-pathway-v4`; correction requests carry controlled validation categories only. The pre-existing ten-attempt quota edit remains outside this amendment and conflicts with approved R11.
+
+- CV PDF parsing remains ordinary local code; configured provider mode (`groq` or `mock`) still determines whether candidate generation is AI or simulated. Improve the shared input minimizer and validator so PDF line wrapping cannot detach negation, common headings resume experience, and common evidence verbs/API wording map to the existing catalogue.
+- Validate a mapped skill against the same affirmative sentence clause that contains the catalogue evidence. This prevents a positive statement about one skill from authorizing a separate negated skill on the same excerpt. The learner confirmation step remains required.
+- Focused synthetic regressions cover wrapped negation, API validation, authored test cases, section boundaries and mixed positive/negative clauses. No catalogue expansion, provider dispatch or credentials changed.
+
 ## Groq roadmap feasibility witness — 17 October 2026
 
 - A live synthetic five-hour roadmap request returned an unverified infeasibility claim although the versioned synthetic catalogue allows five ordered one-skill weeks. Add only a conservative witness that passes the full server plan validator, so the model sees a feasible ordering without the server substituting its own roadmap for AI output.

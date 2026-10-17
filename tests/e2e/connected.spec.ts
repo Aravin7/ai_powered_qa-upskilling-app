@@ -1,3 +1,4 @@
+import { mkdir } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
 import { encode } from 'next-auth/jwt';
 import { PrismaClient } from '../../src/generated/prisma/client';
@@ -45,7 +46,7 @@ test('connected authenticated mock workflow: PDF review, plan, progress, fallbac
    await expect(page.getByRole('switch',{name:purpose})).toBeChecked();
   }
   await page.getByRole('button',{name:'My skills',exact:true}).click();
-  await page.getByLabel('Choose synthetic PDF').setInputFiles({name:'synthetic.pdf',mimeType:'application/pdf',buffer:Buffer.from(syntheticPdf())});
+  await page.getByLabel('Choose synthetic PDF').setInputFiles({name:'synthetic.pdf',mimeType:'application/pdf',buffer:Buffer.from(syntheticPdf(['Professional Summary','Experienced in API testing.','Work Experience','I authored test cases for a synthetic form.','Technologies','Playwright','Education','I used prompt engineering.','Extracurricular Activities','I configured CI/CD.']))});
   const extracted=page.waitForResponse(response=>response.url().endsWith('/api/cv/extract')&&response.request().method()==='POST');
   await page.getByRole('button',{name:'Extract candidate skills'}).click();
   const extraction=await extracted;
@@ -53,14 +54,22 @@ test('connected authenticated mock workflow: PDF review, plan, progress, fallbac
   expect(extraction.status()).toBe(200);
   await expect(page.getByRole('heading',{name:'Temporary evidence · review before confirming'})).toBeVisible({timeout:15000});
   expect(await client.confirmedSkill.count({where:{userId:user.id}})).toBe(0);
+  const evidenceDir='docs/evidence/2026-10-17-cv-amendments';await mkdir(evidenceDir,{recursive:true});
+  await expect(page.getByRole('checkbox',{name:'Select extracted Test automation'})).not.toBeChecked();
+  await expect(page.getByRole('checkbox',{name:'Select extracted API testing'})).toBeChecked();
+  await expect(page.getByText('Listed in CV—experience not demonstrated.',{exact:false})).toBeVisible();
+  await page.screenshot({path:evidenceDir+'/01-cv-evidence-review.png',fullPage:true});
+  await page.getByRole('checkbox',{name:'Select extracted Test automation'}).check();
   await page.getByRole('button',{name:'Confirm skills',exact:true}).click();await expect(page.getByRole('status').filter({hasText:'Skills confirmed'})).toBeVisible();
   expect(await client.confirmedSkill.count({where:{userId:user.id,source:'cv'}})).toBe(3);
   await page.getByRole('button',{name:'Continue to roadmap'}).click();await page.getByRole('button',{name:'Generate mock roadmap'}).click();
   const task=page.getByRole('checkbox',{name:'Complete Generative AI fundamentals'});await expect(task).toBeVisible({timeout:15000});await task.click();await expect(task).toBeChecked();
   await page.reload();await page.getByRole('button',{name:'Learning roadmap',exact:true}).click();await expect(task).toBeChecked();
+  await page.screenshot({path:evidenceDir+'/02-roadmap-progress-reloaded.png',fullPage:true});
   await page.getByRole('button',{name:'Check last operation / recover saved plan'}).click();await expect(page.getByRole('status').filter({hasText:'succeeded'})).toBeVisible();
   await page.getByRole('button',{name:'My skills',exact:true}).click();await page.getByLabel('Choose synthetic PDF').setInputFiles({name:'bad.pdf',mimeType:'application/pdf',buffer:Buffer.from('not PDF')});await page.getByRole('button',{name:'Extract candidate skills'}).click();await expect(page.getByRole('status').filter({hasText:'PDF_MALFORMED'})).toBeVisible();
   expect(await client.confirmedSkill.count({where:{userId:user.id}})).toBe(3);
+  await page.screenshot({path:evidenceDir+'/03-invalid-pdf-recovery.png',fullPage:true});
   await page.getByRole('button',{name:'Learning roadmap',exact:true}).click();await expect(task).toBeChecked();
   const signedOut=page.waitForResponse(response=>response.url().endsWith('/api/auth/signout')&&response.request().method()==='POST');
   await page.getByRole('button',{name:'Sign out',exact:true}).click();

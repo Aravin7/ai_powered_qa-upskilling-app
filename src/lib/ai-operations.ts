@@ -9,9 +9,10 @@ import { executionConfiguration, assertGroqDispatch, processingDisclosure } from
 import { createGroqProvider } from './groq-provider';
 import { providerRequest, PROVIDER_PROMPT_VERSION } from './ai-provider-request';
 import { fingerprint, signCandidate } from './candidate-origin';
-import { minimizeText, validateExtraction, validateRoadmapOutput } from './ai-output';
+import { validateExtraction, validateRoadmapOutput } from './ai-output';
 import { mockProvider, ProviderFailure, type AIProvider, type ProviderInput } from './ai-provider';
 import { parsePdf } from './pdf';
+import { prepareCvText } from './cv-text';
 import type { Purpose } from './types';
 
 // Every mutation takes invitation -> user -> catalogue -> funding locks in that order.
@@ -121,19 +122,22 @@ async function propose<T>(client:PrismaClient,claims:Claims,op:AIOperation,provi
   const request=providerRequest(input);
   if(Buffer.byteLength(JSON.stringify(request))>config.pilot.maxRequestBytes)throw new DomainError('PROVIDER_INPUT_LIMIT','Minimized provider input exceeds the approved byte ceiling. Use manual entry or a smaller CV.',422);
  }
+ let request=input;
  for(let attempt=0;attempt<2;attempt++){
+  provider.checkInput?.(request);
   await reserve(client,claims,op);
   const controller=new AbortController();
   let timer:ReturnType<typeof setTimeout>|undefined;
   try{
    const timeout=Math.min(AI_LIMITS.providerMs,op.deadline.getTime()-Date.now()-3000);
-   const output=await Promise.race([provider.respond(input,controller.signal),new Promise<never>((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new ProviderFailure('PROVIDER_UNAVAILABLE'))},Math.max(1,timeout));})]);
+   const output=await Promise.race([provider.respond(request,controller.signal),new Promise<never>((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new ProviderFailure('PROVIDER_UNAVAILABLE'))},Math.max(1,timeout));})]);
    if(Buffer.byteLength(JSON.stringify(output)??'')>AI_LIMITS.outputBytes)throw new DomainError('INVALID_OUTPUT','Provider output exceeds the configured limit.',502);
    return validate(output);
   }catch(error){
    const safe=safeError(error);
    const retryable=error instanceof ProviderFailure?error.retryable:error instanceof ZodError||['INVALID_OUTPUT','INVALID_EVIDENCE','INVALID_PLAN','DURATION_POLICY','CAPACITY'].includes(safe.code);
    if(attempt===1||!retryable)throw safe;
+   if(input.kind==='cv_extraction'&&(error instanceof ZodError||['INVALID_OUTPUT','INVALID_EVIDENCE'].includes(safe.code)))request={...input,correction:error instanceof ZodError?'INVALID_OUTPUT':safe.code};
   }finally{clearTimeout(timer);controller.abort();}
  }
  throw new DomainError('ATTEMPT_LIMIT','Both attempts have been used.',502);
@@ -179,11 +183,11 @@ export async function extractSkills(client:PrismaClient,claims:Claims,bytes:Uint
   const selected=await selectProvider(client,provider);
   const parsed=await parsePdf(bytes,op.deadline.getTime());
   const state=await getState(client,claims);
-  const text=minimizeText(parsed.text,[claims.email,state.name,...state.name.split(/\s+/).filter(n=>n.length>2)]);
-  const candidates=await propose(client,claims,op,selected,{kind:'cv_extraction',text},output=>validateExtraction(output,text));
+  const prepared=prepareCvText(parsed.text,[claims.email,state.name,...state.name.split(/\s+/).filter(n=>n.length>2)]);
+  const candidates=await propose(client,claims,op,selected,{kind:'cv_extraction',text:prepared.text,blocks:prepared.blocks},output=>validateExtraction(output,prepared.text,prepared.blocks));
   await client.$transaction(async tx=>{await fence(tx,claims,op);await finishBeforeDeadline(tx,op,{code:candidates.length?'CANDIDATES_READY':'NO_EVIDENCE'});},transactionOptions);
   // A final access/consent check before temporary evidence delivery, including revoke/re-grant.
   await client.$transaction(async tx=>{await access(tx,claims,true);const c=await consent(tx,claims,'cv_extraction');if(c.sequence!==op.consentSequence)throw new DomainError('CONSENT_REQUIRED','Consent changed; extraction evidence has been discarded.',403);},transactionOptions);
-  return {code:candidates.length?'CANDIDATES_READY':'NO_EVIDENCE',operation:await operationStatus(client,claims,op.id),candidates:candidates.map(c=>({...c,candidateReference:signCandidate(claims,op.consentSequence,op.id,c.skillId,c.label)})),warnings:[...parsed.warnings,`${op.configurationVersion==='mock-v1'?'Mock':'Groq'} extraction; synthetic inputs only. Review each candidate. Identification removal is limited and does not guarantee anonymity.`]};
+  return {code:candidates.length?'CANDIDATES_READY':'NO_EVIDENCE',operation:await operationStatus(client,claims,op.id),candidates:candidates.map(c=>({...c,candidateReference:signCandidate(claims,op.consentSequence,op.id,c.skillId,c.label)})),warnings:[...parsed.warnings,...prepared.warnings,`${op.configurationVersion==='mock-v1'?'Mock':'Groq'} extraction; synthetic inputs only. Review each candidate. Identification removal is limited and does not guarantee anonymity.`]};
  }catch(error){const safe=safeError(error);await finishFailure(client,claims,op,safe);throw safe;}
 }
