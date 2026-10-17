@@ -98,7 +98,7 @@ describe('CV-07/CV-08/CV-09/CV-10 / R05-R11 / T04-T05', () => {
   });
   it('CV-09a invalid mocked response then valid mocked response consumes exactly two attempts', async () => {
     let calls = 0;
-    const provider: AIProvider = { model: 'recovering-synthetic', async respond(input, signal) { calls++; return calls === 1 ? {} : mockProvider.respond(input, signal); } };
+    const provider: AIProvider = { model: 'recovering-synthetic', async respond(input, signal) { calls++; if(calls===2){expect(input.kind).toBe('cv_extraction');if(input.kind==='cv_extraction')expect(input.correction).toBe('INVALID_OUTPUT');} return calls === 1 ? {} : mockProvider.respond(input, signal); } };
     const result = await extractSkills(first, claims, pdf, crypto.randomUUID(), provider);
     expect(result.code).toBe('CANDIDATES_READY');
     expect(calls).toBe(2);
@@ -125,10 +125,10 @@ describe('CV-07/CV-08/CV-09/CV-10 / R05-R11 / T04-T05', () => {
   it('CV-10a minimizes contact details before the server-side provider boundary', async () => {
     let observed = '';
     const provider: AIProvider = { model: 'capture-synthetic', async respond(input, signal) { if (input.kind === 'cv_extraction') observed = input.text; return mockProvider.respond(input, signal); } };
-    const source = syntheticPdf(['Synthetic Learner', 'Email: synthetic.person@example.invalid', 'Phone: +94 123456789', 'I used Playwright for synthetic browser tests.']);
+    const source = syntheticPdf(['Synthetic Learner', 'Email: synthetic.person@example.invalid', 'Phone: +94 123456789', 'Professional Experience', 'I used Playwright for synthetic browser tests.', 'Client: Confidential Example', 'Education', 'I used prompt engineering.']);
     await extractSkills(first, claims, source, crypto.randomUUID(), provider);
     expect(observed).toContain('Playwright');
-    expect(observed).not.toMatch(/synthetic.person@|123456789|Synthetic Learner/);
+    expect(observed).not.toMatch(/synthetic.person@|123456789|Synthetic Learner|Confidential Example|prompt engineering/);
     const records = await first.aIOperation.findMany({ where: { userId: claims.id } });
     expect(JSON.stringify(records)).not.toContain('Playwright');
   });

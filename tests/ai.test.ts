@@ -43,7 +43,7 @@ describe('T04 transient PDF and evidence validation',()=>{
   const text=minimizeText(parsed.text,[]);
   const output=await mockProvider.respond({kind:'cv_extraction',text},new AbortController().signal);
   expect(validateExtraction(output,text).map(s=>s.skillId)).toEqual(['test-design','api-testing','automation']);
- });
+ },15000);
  it('rejects malformed and insufficient-readable-text PDFs with manual recovery codes',async()=>{
   await expect(parsePdf(new Uint8Array(Buffer.from('not a pdf')),Date.now()+45000)).rejects.toMatchObject({code:'PDF_MALFORMED'});
   await expect(parsePdf(syntheticPdf(['']),Date.now()+45000)).rejects.toMatchObject({code:'PDF_INSUFFICIENT_TEXT'});

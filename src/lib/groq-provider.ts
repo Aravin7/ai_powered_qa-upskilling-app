@@ -7,8 +7,8 @@ import { DomainError } from './domain';
 type Options={apiKey:string;model:string;maxOutputTokens?:number;maxRequestBytes?:number;fetchImpl?:typeof fetch};
 const strings={type:'array',items:{type:'string'}};
 const extractionSchema={type:'object',additionalProperties:false,required:['skills'],properties:{skills:{type:'array',items:{
- type:'object',additionalProperties:false,required:['skillId','label','evidenceExcerpt'],
- properties:{skillId:{type:['string','null']},label:{type:'string'},evidenceExcerpt:{type:'string'}},
+ type:'object',additionalProperties:false,required:['skillId','label','evidenceExcerpt','sourceId'],
+ properties:{skillId:{type:['string','null']},label:{type:'string'},evidenceExcerpt:{type:'string'},sourceId:{type:['string','null']}},
 }}}};
 // Use a closed root object. Cross-field conditions and all size/business limits remain server validated.
 const roadmapSchema={type:'object',additionalProperties:false,required:['outcome','reason','constraintCode','deferredSkillIds','tasks'],properties:{

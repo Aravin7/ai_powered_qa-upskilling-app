@@ -1,9 +1,10 @@
 import { z } from 'zod';
+import { prepareCvText, type CvBlock } from './cv-text';
 import { catalogue } from './catalogue';
 import { canonicalize, DomainError, normalizeLabel, planSchema, validatePlan } from './domain';
 import { AI_LIMITS } from './ai-config';
 import type { Profile, SkillEntry } from './types';
-export const extractionSchema=z.object({skills:z.array(z.object({skillId:z.string().max(80).nullable(),label:z.string().trim().min(1).max(100),evidenceExcerpt:z.string().trim().min(1).max(400)}).strict()).max(AI_LIMITS.candidates)}).strict();
+export const extractionSchema=z.object({skills:z.array(z.object({skillId:z.string().max(80).nullable(),label:z.string().trim().min(1).max(100),evidenceExcerpt:z.string().trim().min(1).max(400),sourceId:z.string().max(80).nullable().optional()}).strict()).max(AI_LIMITS.candidates)}).strict();
 export const infeasibleSchema=z.object({outcome:z.literal('infeasible'),reason:z.string().trim().min(1).max(600),constraintCode:z.enum(['duration_policy','capacity','prerequisite_or_content','undetermined']),tasks:z.array(z.never()).length(0),deferredSkillIds:z.array(z.never()).length(0)}).strict();
 export const roadmapOutputSchema=z.union([planSchema,infeasibleSchema]);
 // A server-validated witness only establishes that at least one schedule exists.
@@ -26,45 +27,47 @@ export function containsSkill(text:string,label:string){
 }
 export function supportsCatalogueSkill(line:string,skill:{id:string;label:string;aliases:readonly string[]}){
  if([skill.label,...skill.aliases].some(label=>containsSkill(line,label)))return true;
- // Concrete test-case design can be demonstrated without repeating the catalogue label.
- return skill.id==='test-design'&&/\bdesigned\b[^.!?\n]{0,120}\b(?:boundary(?: value)?|negative|equivalence partitioning)\b[^.!?\n]{0,80}\btest cases?\b/i.test(line);
+ // CVs often describe the work without using the catalogue's exact label.
+ if(skill.id==='test-design'&&/\b(?:designed|authored|wrote|created|executed|reviewed|maintained|developed)\b[^.!?;\n]{0,180}\b(?:test cases?|test scenarios?|test designs?)\b/i.test(line))return true;
+ return skill.id==='api-testing'&&(/\b(?:api|rest|http)\s+(?:testing|validation|checks?)\b|\b(?:tested|validated)\s+(?:rest|http|json)\s+(?:apis?|endpoints?)\b/i.test(line));
 }
-export function minimizeText(text:string,identifiers:string[]){
- let cleaned=text.replace(/^[^\n]*(?:@|https?:\/\/|www\.|linkedin|\baddress\b|\bphone\b|\bcontact\b|\bstreet\b|\bpostal\b)[^\n]*$/gim,'');
- cleaned=cleaned.replace(/\+?\d[\d ()-]{7,}\d/g,'[removed]');
- const escape=(value:string)=>value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
- const bounded=(value:string)=>new RegExp(`(?<![\\p{L}\\p{N}])${escape(value)}(?![\\p{L}\\p{N}])`,'giu');
- // Remove full identities first. Individual name tokens may also be skill terms;
- // preserve those only inside an exact catalogue phrase, never inside a full name.
- for(const identifier of [...new Set(identifiers.map(value=>value.trim()).filter(Boolean))].sort((a,b)=>b.length-a.length)){
-  const skillRanges=/\s/.test(identifier)?[]:catalogue.skills.flatMap(skill=>[skill.label,...skill.aliases].flatMap(label=>
-   [...cleaned.matchAll(bounded(label))].map(match=>({start:match.index,end:match.index+match[0].length}))));
-  cleaned=cleaned.replace(bounded(identifier),(match:string,offset:number)=>
-   skillRanges.some(range=>offset>=range.start&&offset+match.length<=range.end)?match:'[removed]');
+const actionVerb=/\b(?:used|built|designed|implemented|performed|created|tested|automated|reviewed|authored|executed|conducted|wrote|led|developed|maintained|validated|configured|deployed|reported|analyzed|analysed|managed|delivered|supported|debugged|verified|documented|prepared|established|integrated|contributed|presented|facilitated)\b/i;
+export function minimizeText(text:string,identifiers:string[]){return prepareCvText(text,identifiers).text;}
+const unsupported=/(?:\b(?:no|not|never|without|lack|lacks|want|wish|hope|plan|aspire|learn|learning|seeking|require|requires|required|requirement|requirements|vacancy|job advert|ignore|invoke)\b|n['’]t\b|[<>]|https?:|@)/i;
+export function evidenceClauses(text:string){return text.split(/(?<=[.!?;])\s+/).map(s=>s.trim()).filter(Boolean);}
+export function affirmativeEvidence(text:string){return !/["“”]/.test(text)&&evidenceClauses(text).some(clause=>!unsupported.test(clause)&&(actionVerb.test(clause)||/\b(?:experienced|proficient|skilled)\s+(?:in|with|at)\b/i.test(clause)));}
+export function supportsAffirmativeCatalogueSkill(text:string,skill:{id:string;label:string;aliases:readonly string[]}){
+ return !/["“”]/.test(text)&&evidenceClauses(text).some(clause=>affirmativeEvidence(clause)&&supportsCatalogueSkill(clause,skill));
+}
+export function candidateEvidence(block:CvBlock,excerpt:string,skill:{id:string;label:string;aliases:readonly string[]}){
+ const offset=block.text.indexOf(excerpt);if(offset<0||block.text.indexOf(excerpt,offset+1)>=0)return null;
+ // Check the full sentence around the excerpt; a model cannot omit negation by
+ // quoting only its affirmative fragment. Ambiguous quotes fail conservatively.
+ if(/["“”]/.test(block.text))return null;
+ let position=0;
+ for(const clause of evidenceClauses(block.text)){
+  const begin=block.text.indexOf(clause,position);position=begin+clause.length;
+  if(offset<begin||offset+excerpt.length>position)continue;
+  if(unsupported.test(clause)||!supportsCatalogueSkill(excerpt,skill))return null;
+  if(affirmativeEvidence(clause))return 'demonstrated' as const;
+  if(block.section==='technologies'&&!actionVerb.test(clause))return 'listed' as const;
  }
- // Local synthetic profile accepts only task-evidence lines. Discard the contact/header block.
- let excluded=false;
- return cleaned.split('\n').filter(line=>{
-  if(/^\s*(?:job requirements?|requirements?|objectives?|aspirations?|future learning)\b/i.test(line)){excluded=true;return false;}
-  if(/^\s*(?:work experience|experience|projects|employment history|professional skills)\s*:?\s*$/i.test(line)){excluded=false;return false;}
-  return !excluded&&/\b(?:used|built|designed|implemented|performed|created|tested|automated|reviewed)\b/i.test(line);
- }).join('\n');
+ return null;
 }
-export function affirmativeEvidence(excerpt:string){
- return /\b(?:used|built|designed|implemented|performed|created|tested|automated|reviewed)\b/i.test(excerpt)
-  &&!/(?:\b(?:no|not|never|without|lack|lacks|want|wish|hope|plan|aspire|learn|learning|seeking|require|requires|required|requirement|requirements|vacancy|job advert)\b|["“”<>]|https?:|@)/i.test(excerpt);
-}
-export function validateExtraction(input:unknown,text:string){
+export function validateExtraction(input:unknown,text:string,sourceBlocks?:CvBlock[]){
  const result=extractionSchema.parse(input);const seen=new Set<string>();
+ const blocks=sourceBlocks??text.split('\n').map((line,i)=>({id: `cv-${i+1}`,section:'uncertain' as const,text:line}));
  return result.skills.map(candidate=>{
-  const line=text.split('\n').find(line=>line.trim()===candidate.evidenceExcerpt);
-  if(!line||!affirmativeEvidence(line))throw new DomainError('INVALID_EVIDENCE','Skill evidence could not be verified. Review skills manually.',502);
   const skill=catalogue.skills.find(s=>s.id===candidate.skillId);
   if(candidate.skillId&&!skill)throw new DomainError('INVALID_EVIDENCE','Unknown extracted skill.',502);
-  if(!(skill?supportsCatalogueSkill(line,skill):containsSkill(line,candidate.label)))throw new DomainError('INVALID_EVIDENCE','Evidence does not support this skill mapping.',502);
+  const vocabulary=skill??{id:'unmatched',label:candidate.label,aliases:[]};
+  const matches=blocks.filter(b=>(!candidate.sourceId||b.id===candidate.sourceId)&&b.text.includes(candidate.evidenceExcerpt));
+  if(matches.length!==1)throw new DomainError('INVALID_EVIDENCE','Evidence is missing or ambiguous. Review skills manually.',502);
+  const evidenceType=candidateEvidence(matches[0],candidate.evidenceExcerpt,vocabulary);
+  if(!evidenceType)throw new DomainError('INVALID_EVIDENCE','Evidence does not support this skill mapping.',502);
   const entry=canonicalize({canonicalSkillId:candidate.skillId,label:candidate.label});
   if(seen.has(entry.key))throw new DomainError('INVALID_EVIDENCE','Duplicate extracted skill.',502);
-  seen.add(entry.key);return {...candidate,skillId:entry.canonicalSkillId,label:entry.label};
+  seen.add(entry.key);return {...candidate,skillId:entry.canonicalSkillId,label:entry.label,sourceId:matches[0].id,evidenceType};
  });
 }
 export function validateRoadmapOutput(input:unknown,profile:Profile,skills:SkillEntry[]){

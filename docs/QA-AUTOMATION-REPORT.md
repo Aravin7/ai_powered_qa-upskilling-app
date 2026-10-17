@@ -1,5 +1,7 @@
 # QA automation report — 10 October 2026
 
+Current 17 October results: [108 unit passes, 10 browser passes and 51 integration passes/3 quota failures in the initial full run](evidence/2026-10-17-full-suite/README.md). After the user restored the five-attempt limit, the three focused quota cases passed; the other 46 integration cases were not rerun. The historical requirement matrix below describes the test inventory at its earlier checkpoint and does not prove the unautomated whole-system cases.
+
 11 October follow-on: Gemini configuration/funding/consent tests G-01–G-13 and their requirement mapping are documented in [GEMINI-PILOT.md](GEMINI-PILOT.md). Current execution results superseding the historical checkpoint below are in [BUILD-STATUS.md](BUILD-STATUS.md). The added service tests intercept HTTP and do not verify live Gemini or real Google OAuth. Browser/device/accessibility, network interruption, T13 measurement, deployment, backup/provider deletion and professional semantic review gaps remain open.
 
 Baseline commit `457afd301de5e3603c998941e8b023d6a4c8bad5`; working branch `codex/qa-automation-coverage`. The Week 3 application implementation was already uncommitted on `codex/week3-connected-workflow` when this work began. Creating the new branch retained those changes. The reported checks cover that working tree, not the baseline commit alone. At the test execution checkpoint, no commit, push, merge, deployment, paid AI call or personal database reset was performed. Branch publication was requested afterward.

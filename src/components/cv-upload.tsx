@@ -1,6 +1,6 @@
 'use client';
 import { useRef, useState, useEffect } from 'react';
-export type Candidate={skillId:string|null;label:string;evidenceExcerpt:string;candidateReference:string};
+export type Candidate={skillId:string|null;label:string;evidenceExcerpt:string;candidateReference:string;sourceId?:string;evidenceType?:'demonstrated'|'listed'};
 export function CvUpload({enabled,onCandidates,onAccessEnded,provider='mock provider'}:{enabled:boolean;onCandidates:(candidates:Candidate[])=>void;onAccessEnded:()=>void;provider?:string}){
  const [file,setFile]=useState<File|null>(null);const [pending,setPending]=useState(false);const [message,setMessage]=useState('');
  const controller=useRef<AbortController|null>(null);
@@ -24,5 +24,5 @@ export function CvUpload({enabled,onCandidates,onAccessEnded,provider='mock prov
   }catch(error){if(active.current)setMessage(error instanceof Error?error.message:'Extraction failed. Enter skills manually; saved skills are preserved.');}
   finally{if(active.current)setPending(false);}
  }
- return <div className="card"><h3>Optional PDF CV extraction · {provider}</h3><p>Synthetic PDFs only: up to 2 MiB, 10 pages and 20,000 characters. No OCR. Files and evidence are transient; only confirmed skills are saved. Manual entry is always available.</p>{!enabled&&<p>Enable CV extraction consent in Privacy & settings first.</p>}<label>Choose synthetic PDF<input type="file" accept="application/pdf,.pdf" disabled={!enabled||pending} onChange={e=>setFile(e.target.files?.[0]??null)}/></label><button type="button" className="button secondary" disabled={!enabled||!file||pending} onClick={()=>void extract()}>{pending?'Extracting…':'Extract candidate skills'}</button>{message&&<p role="status">{message}</p>}</div>;
+ return <div className="card"><h3>Optional PDF CV extraction · {provider}</h3><p>Synthetic PDFs only: up to 2 MiB, 10 pages and 20,000 characters. No OCR. Relevant professional sections are retained; detectable personal, company, client and project details are removed. Redaction is imperfect—use appropriately redacted synthetic inputs. Files and evidence are transient; only confirmed skills are saved. Manual entry is always available.</p>{!enabled&&<p>Enable CV extraction consent in Privacy & settings first.</p>}<label>Choose synthetic PDF<input type="file" accept="application/pdf,.pdf" disabled={!enabled||pending} onChange={e=>setFile(e.target.files?.[0]??null)}/></label><button type="button" className="button secondary" disabled={!enabled||!file||pending} onClick={()=>void extract()}>{pending?'Extracting…':'Extract candidate skills'}</button>{message&&<p role="status">{message}</p>}</div>;
 }

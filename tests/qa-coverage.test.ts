@@ -36,6 +36,26 @@ describe('CV-02 / R04-R05 / T04: separate evidence classes', () => {
     const output = await mockProvider.respond({ kind: 'cv_extraction', text }, new AbortController().signal);
     expect(validateExtraction(output, text).map(candidate => candidate.skillId)).toEqual(['test-design', 'api-testing', 'automation']);
   });
+  it('CV-02h keeps wrapped negation attached and never turns it into affirmative evidence', () => {
+    const text = minimizeText('I have never\nperformed API testing.', []);
+    expect(text).toContain('never performed API testing');
+    expect(() => validateExtraction({ skills: [{ skillId: 'api-testing', label: 'API testing', evidenceExcerpt: text }] }, text)).toThrow();
+  });
+  it('CV-02i recognizes common API validation wording and authored test-case evidence', async () => {
+    const text = minimizeText('Performed manual API validation using Postman.\nAuthored and executed 450 test cases for account flows.', []);
+    const output = await mockProvider.respond({ kind: 'cv_extraction', text }, new AbortController().signal);
+    expect(validateExtraction(output, text).map(candidate => candidate.skillId)).toEqual(['test-design', 'api-testing']);
+  });
+  it('CV-02j resumes experience extraction after a job-requirements section', () => {
+    const text = minimizeText('Job requirements\nI performed Playwright automation.\nPROFESSIONAL EXPERIENCE\nI performed API testing.', []);
+    expect(text).not.toContain('Playwright');
+    expect(text).toContain('I performed API testing.');
+  });
+  it('CV-02k does not use a negative API statement as evidence for a separate positive skill', () => {
+    const text = 'I performed manual testing; API testing was not part of my role. I used Playwright.';
+    expect(() => validateExtraction({ skills: [{ skillId: 'api-testing', label: 'API testing', evidenceExcerpt: text }] }, text)).toThrow();
+    expect(validateExtraction({ skills: [{ skillId: 'automation', label: 'Test automation', evidenceExcerpt: 'I used Playwright.' }] }, text)).toHaveLength(1);
+  });
   it.each([
     ['CV-02b', 'I never used Playwright.'],
     ['CV-02c', 'I want to learn Playwright and built a study plan.'],
