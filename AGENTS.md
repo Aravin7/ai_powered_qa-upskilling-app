@@ -43,6 +43,8 @@
 
 ## Verification and reporting
 
+- Aravin authorizes relevant local mocked tests and isolated test-database checks without repeated confirmation. This does not authorize live/paid provider calls or deployment; tool-enforced sandbox approvals still apply.
+
 - At bootstrap define: `npm run dev`, `npm run build`, `npm run start`, `npm run lint`, `npm run typecheck`, `npm test`, `npm run test:integration`, `npm run test:e2e`, `npm run db:migrate`, `npm run db:deploy`, `npm run catalogue:validate`.
 - Run relevant checks for affected R/US/T IDs. Concurrency/transaction tests use real PostgreSQL; provider failure tests use controlled mocks; deployed parser/provider/retention claims require real evidence.
 - Never treat blocked/not-run checks as passes or mocks as live integration evidence.

@@ -1,5 +1,26 @@
 # Decision Log
 
+## v4 packet and exercise corrections — 18 October 2026
+
+- Applied the two user-provided reviews. Critical and Important are mandatory; prerequisites inherit the maximum retained dependent priority transitively. Added the compiler policy to requirement-set identity so old bindings are not silently reused after this semantic change. Optional-only work remains Nice and explicitly deferrable.
+- Removed the Playwright automation prerequisite from the supplied-scorer evaluation because basic TypeScript/npm/Git is already its starting condition. This supersedes that part of the earlier v3 proposal, without rewriting its historical reported approval. Performance-direction load testing is Important and generated-test review is Critical in AI-assisted QA. Full closure/workload totals are visible in the packet.
+- Meaning versions are assigned per capability: unchanged effective `draft-v4` definitions remain stable; clarified evaluation/CI/gates/generated-review definitions use `draft-v4-r2`. CI simulation means inspecting YAML and running the same npm commands locally, without act/Docker or pretending to execute a hosted runner.
+- Separated learner fixtures from reviewer answer keys; added four generated-test defects, executable repairs and fault-detection checks, strict scorer/exit behavior, criterion pass/fail and saved variation cases, distinct retrieval failures, bounded loopback fault modes and a timed-pilot record template. Reviewer-folder separation is not access control.
+- Record the sixteen v3 amendment points as user-reported evidence only. Independent reviewer confirmation, exact v4 review and participant timing are still pending. Publication requires one recorded participant pilot per exercise, with starting knowledge, phase minutes and blockers. Draft fixtures for four topics do not establish all fourteen activities or professional quality. No real content activation, provider call or database mutation.
+
+## Initial direction-rule candidates — 18 October 2026
+
+- Added five nonpermanent starter rules to draft v4 so priority can be stated per selected direction: AI-assisted QA, GenAI application testing, AI safety/security testing, automation/delivery gates, and AI application reliability. AI may suggest other capability combinations; unsupported rules stay provisional pending review/publication.
+- The v3 amendment approval reported by Aravin does not cover these new v4 direction definitions or priorities. Keep `review:null` and block authoritative comparison until an exact v4 review is recorded. The rules are not active in the application.
+- Unit coverage verifies different direction-specific priority for `llm-evaluation`, Nice priority for `load-testing`, and pending-review rejection. No runtime data, database, provider or deployed system was changed.
+
+## QA capability draft amendments and reported approval — 18 October 2026
+
+- Aravin reported that Tharindu Perera supplied and approved the 16 amendment points. Draft v3 records reviewer/date/digest metadata for that user-reported approval; this is not a cryptographic signature. The amendment packet distinguishes that approval from future direction rules and fixture materials.
+- Updated capability prerequisites and scope: scripted GenAI response evaluation now depends on automation; AI security depends on response evaluation; observability depends on API and response evaluation; prompt injection belongs to AI security, while responsible AI covers privacy, bias, transparency and human oversight. Generated-test review has a distinct capability ID.
+- Added the programming/Git baseline; Playwright status/body with 401/403 exercise; deliberate automation failure/repeats; seeded generated-test defects; 10–12 saved GenAI cases and a supplied scorer/rubric; labeled retrieval inputs; optional external chat use; optional free hosted CI; local k6 machine-noise caution; separate API/Playwright/k6/CI setup identities; and increased automation/delivery practice effort.
+- Priority values are not shown as universal requirements. Load testing is Nice in the base draft and in the v4 candidate rules. v3 had no direction rules; v4 adds five unreviewed direction candidates, so the draft remains inactive pending exact-version review. No user data, application database, provider or deployment was involved.
+
 ## Pre-push review corrections — 18 October 2026
 
 - Keep explicitly identified certification lines within excluded education sections, but never assume subsequent lines are credential context. Labelled personal fields remain excluded. Synthetic provider-payload regressions cover names/locations, institutions and study dates/GPA.
@@ -201,3 +222,6 @@ Historical warnings: the original transcript ends before Q10 is answered; older 
 - Mock budget units are nonmonetary; the later Gemini transport is not connected to paid dispatch. Conservative exact synthetic activity validation is not general LLM semantic evaluation. Retention facts and reviewed content remain external gates.
 - Aligned Prisma CLI/client/adapter 7.10.0, Next ESLint configuration 16.3.8, pinned pdf-parse 2.4.5 and updated lockfile. Sources: [Prisma 7 migration guidance](https://www.prisma.io/docs/guides/upgrade-prisma-orm/v7), [pdf-parse maintainer documentation](https://github.com/mehmet-kozan/pdf-parse), and bundled Next route-handler/client-boundary/external-package guides. npm advisory assessment remains pending.
 - Expected/actual tests are in BUILD-STATUS. Continuation resolved the earlier approval-review limit: 41 unit/parser cases, 20 PostgreSQL cases and six browser journeys pass. Production build and local production smoke pass. The browser fixture now checks API readiness and awaits Auth.js sign-out persistence; no product timeout or safety gate was relaxed. Google OAuth success, live provider behavior and deployed-runtime evidence remain unverified.
+
+## 18 October 2026 — external learning materials, not a teaching laboratory
+The product owner clarified that the MVP recommends materials and activities, while learners perform exercises externally. Removed the added teaching fixture package and its test commands. Preserve application workflow tests, strict validation, reviewed requirements and honest workload estimates. Earlier curriculum-fixture/pilot proposals are superseded; they do not authorize a learner execution/scoring subsystem or impose an exercise-pilot release gate. The existing unapproved activity-specific draft still needs external-resource alignment before activation.
