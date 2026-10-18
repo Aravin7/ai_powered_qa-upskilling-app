@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { caseFold } from 'unicode-case-folding';
 import { catalogue, validateCatalogue } from './catalogue';
 import type { AppState, Profile, Roadmap, SkillEntry } from './types';
-export const POLICY_VERSION = 'development-mock-disclosure-v2';
+export const POLICY_VERSION = 'development-mock-disclosure-v4';
 export class DomainError extends Error {
   constructor(public code: string, message: string, public status = 400) { super(message); }
 }
@@ -76,6 +76,7 @@ export function validatePlan(input:unknown,profile:Pick<Profile,'hoursPerWeek'>,
  return plan;
 }
 export function syntheticRoadmap(state:AppState):Roadmap {
+ if(state.pathwayExploration?.selectedSuggestionId)throw new DomainError('CONTENT_REVIEW_REQUIRED','This provisional direction has no reviewed requirements. Your existing sample plan is preserved.',409);
  if(!state.profile.confirmed||!state.profile.inventoryConfirmed)throw new DomainError('ONBOARDING_REQUIRED','Save your profile and confirm your skills first.');
  if(!state.consents.roadmap_generation)throw new DomainError('CONSENT_REQUIRED','Enable roadmap consent in Privacy & settings.',403);
  const gaps=compare(state.skills).gaps;

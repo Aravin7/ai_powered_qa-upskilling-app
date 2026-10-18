@@ -3,9 +3,12 @@ import { ZodError } from 'zod';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { DomainError, compare, consentSchema, generateSchema } from '@/lib/domain';
-import { getState, putProfile, putSkills, putConsent, patchTask, deleteAccount, endSession } from '@/lib/store';
-import { extractSkills, generateRoadmap, operationStatus } from '@/lib/ai-operations';
-import { readPdfUpload } from '@/lib/pdf';
+import { getState, putProfile, putSkills, putConsent, patchTask, deleteAccount, endSession, putPathwayPreferences, selectPathway } from '@/lib/store';
+import { extractSkills, generateRoadmap, operationStatus, suggestPathways, researchResourcePreview, researchReviewedResources } from '@/lib/ai-operations';
+import { parsePdf, readPdfUpload } from '@/lib/pdf';
+import { prepareCvText } from '@/lib/cv-text';
+import { confirmSkillReconciliation, currentSkillReviewAvailability, previewSkillReconciliation } from '@/lib/skill-reconciliation';
+import { getReviewedGaps, reviewedDirectionOptions, saveReviewedDirection } from '@/lib/reviewed-direction';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 function response(code:string,message:string,data:unknown,status=200){return Response.json({code,message,data},{status,headers:{'Cache-Control':'private, no-store','Vary':'Cookie'}});}
@@ -28,11 +31,41 @@ async function handler(req:Request,ctx:{params:Promise<{path:string[]}>}){
   const client=db(); const state=await getState(client,claims);
   const path=(await ctx.params).path.join('/');let data:unknown;
   if(req.method==='GET'&&path==='me')data=state;
-  else if(req.method==='GET'&&path==='gaps')data=compare(state.skills);
+  else if(req.method==='GET'&&path==='pathways/reviewed')data=await reviewedDirectionOptions(client,claims);
+  else if(req.method==='PUT'&&path==='pathways/reviewed')data=await saveReviewedDirection(client,claims,await readJson(req));
+  else if(req.method==='POST'&&path==='pathways/reviewed/resources'){
+   const result=await researchReviewedResources(client,claims,await readJson(req));
+   return response(result.code,'Synthetic topic resources saved; no live web research or page checks.',result);
+  }
+  else if(req.method==='GET'&&path==='requirements/active')data=await currentSkillReviewAvailability(client,claims);
+  else if(req.method==='GET'&&path==='skills/reconciliation'){
+   const version=new URL(req.url).searchParams.get('version');
+   data=await previewSkillReconciliation(client,claims,version);
+  }
+  else if(req.method==='PUT'&&path==='skills/reconciliation'){
+   await confirmSkillReconciliation(client,claims,await readJson(req));
+   data=await getState(client,claims);
+  }
+  else if(req.method==='GET'&&path==='gaps'){
+   const reviewed=await getReviewedGaps(client,claims);
+   if(reviewed)return response('OK','Comparison of confirmed self-report; this does not certify competence.',reviewed);
+   if(state.pathwayExploration?.selectedSuggestionId)throw new DomainError('CONTENT_REVIEW_REQUIRED','The selected provisional direction has no reviewed requirement set. Existing plan and progress are preserved.',409);
+   data=compare(state.skills);
+  }
   else if(req.method==='GET'&&path==='roadmap')data=state.roadmap;
   else if(req.method==='POST'&&path==='session/end'){await endSession(client,claims);data=null;}
   else if(req.method==='GET'&&/^ai\/operations\/[a-zA-Z0-9-]{1,80}$/.test(path))data=await operationStatus(client,claims,path.split('/')[2]);
+  else if(req.method==='POST'&&path==='pathways/resources'){
+   const result=await researchResourcePreview(client,claims,await readJson(req));
+   return response(result.code,'Synthetic resource preview only; no live web search or real page verification.',result);
+  }
   else if(req.method==='PUT'&&path==='profile')data=await putProfile(client,claims,await readJson(req));
+  else if(req.method==='PUT'&&path==='pathways/preferences')data=await putPathwayPreferences(client,claims,await readJson(req));
+  else if(req.method==='PUT'&&path==='pathways/select')data=await selectPathway(client,claims,await readJson(req));
+  else if(req.method==='POST'&&path==='pathways/suggest'){
+   const result=await suggestPathways(client,claims,await readJson(req));
+   return response(result.code,'Provisional pathway operation status; mock generation only.',result);
+  }
   else if(req.method==='PUT'&&path==='skills')data=await putSkills(client,claims,await readJson(req));
   else if(req.method==='PUT'&&path==='consent')data=await putConsent(client,claims,consentSchema.parse(await readJson(req)));
   else if(req.method==='PATCH'&&/^roadmap\/tasks\/[a-zA-Z0-9-]{1,80}$/.test(path))data=await patchTask(client,claims,path.split('/')[2],await readJson(req));
@@ -42,6 +75,14 @@ async function handler(req:Request,ctx:{params:Promise<{path:string[]}>}){
   }else if(req.method==='POST'&&path==='roadmaps/generate'){
    const result=await generateRoadmap(client,claims,generateSchema.parse(await readJson(req)));
    return response(result.code,result.code==='NO_GAPS'?'No missing listed requirements; this does not certify competence.':'Learning roadmap operation status.',result);
+  }else if(req.method==='POST'&&path==='cv/prepare'){
+   if(!state.consents.cv_extraction)throw new DomainError('CONSENT_REQUIRED','Enable CV extraction consent before preparing a preview.',403);
+   const upload=await readPdfUpload(req);
+   const parsed=await parsePdf(upload.bytes,Date.now()+45000);
+   const current=await getState(client,claims);
+   if(!current.consents.cv_extraction)throw new DomainError('CONSENT_REQUIRED','CV extraction consent changed; preview was discarded.',403);
+   const prepared=prepareCvText(parsed.text,[claims.email,current.name,...current.name.split(/\s+/).filter(n=>n.length>2)]);
+   data={blocks:prepared.blocks,warnings:[...parsed.warnings,...prepared.warnings]};
   }else if(req.method==='POST'&&path==='cv/extract'){
    if(!state.consents.cv_extraction)throw new DomainError('CONSENT_REQUIRED','Enable CV extraction consent before uploading.',403);
    const upload=await readPdfUpload(req);

@@ -32,6 +32,7 @@ async function boundedBody(response:Response){
 export function createGroqProvider({apiKey,model,maxOutputTokens=4096,maxRequestBytes=64000,fetchImpl=fetch}:Options):AIProvider{
  if(!apiKey||model!==GROQ_MODEL)throw new Error('Groq needs a server key and the configured fixed model.');
  function requestBody(input:ProviderInput){
+  if(input.kind==='pathway_suggestions')throw new DomainError('PATHWAY_LIVE_DISABLED','Live pathway suggestions need reviewed capabilities and an updated approved disclosure. Local mock exploration remains available.',503);
   const prompt=providerRequest(input);
   const body=JSON.stringify({model,messages:[{role:'system',content:prompt.system},{role:'user',content:prompt.user}],
    max_completion_tokens:maxOutputTokens,reasoning_effort:'low',include_reasoning:false,stream:false,

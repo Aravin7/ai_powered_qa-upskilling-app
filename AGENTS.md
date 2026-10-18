@@ -20,7 +20,7 @@
 ## Invariants to preserve
 
 - Google-only invited learner; eligibility/active account/ownership on all private server reads and writes.
-- One fixed pathway; no role switching or proficiency/employment claims.
+- Learner-selected QA directions from versioned requirements; LLM-led resource research as approved in specs.md; no non-QA expansion or proficiency/employment claims.
 - Optional PDF or manual entry, explicit confirmation, merge review and explicit removals.
 - No durable raw CV/text/excerpts/prompts or content logging.
 - Whole 1–40 hours/week; nonempty 4–12 occupied relative weeks; honest minutes/prerequisites and practical task.
