@@ -38,7 +38,7 @@ export async function executionConfiguration(tx:Tx){
  const config=mockConfiguration();return {mode:'mock' as const,budgetId:config.budgetId,version:'mock-v1',units:1};
 }
 export async function processingDisclosure(tx:Tx):Promise<ProcessingDisclosure>{
- if(process.env.AI_MODE==='mock')return {mode:'mock',policyVersion:POLICY_VERSION,notice:'Local mock processing of synthetic inputs only. No external AI transmission occurs. Files and evidence are temporary; keyed fingerprints and operation/consent metadata remain until account deletion. Candidate references expire after 15 minutes.',provider:'Local mock provider'};
+ if(process.env.AI_MODE==='mock')return {mode:'mock',policyVersion:POLICY_VERSION,notice:'Local mock processing of synthetic inputs only, including pathway suggestions from confirmed skills, saved interests, coding/work preferences and weekly hours. Mock resource previews use selected direction/topic labels and placeholder sources, with two separately counted provider steps. They do not perform web search or verify real pages. No external AI transmission occurs. Files and evidence are temporary; keyed fingerprints, saved resource fixtures and operation/consent metadata remain until account deletion. Candidate references expire after 15 minutes.',provider:'Local mock provider'};
  if(process.env.AI_MODE==='groq')try{
   const {pilot,version}=await groqConfiguration(tx);
   return {mode:'groq',policyVersion:`groq-disclosure-v1-${version}`,provider:`Groq (${pilot.model})`,notice:pilot.privacyNotice};

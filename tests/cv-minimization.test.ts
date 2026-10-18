@@ -16,9 +16,61 @@ it('CV-SEC-01 retains summary, work and technology lists while excluding persona
  const request=JSON.parse(providerRequest({kind:'cv_extraction',text:cv.text,blocks:cv.blocks}).user);
  expect(request.sourceBlocks).toEqual(cv.blocks);expect(request).not.toHaveProperty('minimizedCvText');
  expect(JSON.stringify(request.sourceBlocks)).not.toMatch(/Synthetic Person|prompt engineering|CI\/CD/);
+ expect(request.sourceBlocks.map((b:{section:string})=>b.section)).toContain('technologies');
  const block=cv.blocks.find(b=>b.section==='technologies')!;
  const result=validateExtraction({skills:[{skillId:'automation',label:'Test automation',evidenceExcerpt:'Playwright',sourceId:block.id}]},cv.text,cv.blocks);
  expect(result[0].evidenceType).toBe('listed');
+});
+it('CV-SEC-08 allows relevant non-catalogue technology as a listed self-report',()=>{
+ const cv=prepareCvText('Core Competencies & Tools\nTools & Platforms\nSQL, Git, BrowserStack');
+ const block=cv.blocks.find(b=>b.section==='technologies')!;
+ const candidates=['SQL','Git','BrowserStack'].map(label=>({skillId:null,label,evidenceExcerpt:label,sourceId:block.id}));
+ const result=validateExtraction({skills:candidates},cv.text,cv.blocks);
+ expect(result.map(candidate=>[candidate.label,candidate.evidenceType])).toEqual([['SQL','listed'],['Git','listed'],['BrowserStack','listed']]);
+});
+it('CV-SEC-07 classifies common QA CV headings and removes personal, employer, location and degree details',()=>{
+ const cv=prepareCvText(`Alex Rivera
+QA MANUAL ENGINEER
+Location: Chicago, IL (Open to Remote) • Email: alex@example.invalid • Phone: (555) 234-5678 •
+LinkedIn: linkedin.com/in/alex-rivera
+PROFESSIONAL SUMMARY
+Experienced manual QA engineer with API testing experience.
+CORE COMPETENCIES & TOOLS
+Testing Methodologies
+• Functional & Smoke Testing
+Tools & Platforms
+• Postman (Manual API Testing)
+Database & Environment
+• SQL (Queries, Joins, Data Validation)
+PROFESSIONAL EXPERIENCE
+Manual QA Engineer — Apex FinTech Solutions Feb 2022 – Present | Chicago, IL
+Performed manual API validation using Postman.
+EDUCATION & CERTIFICATIONS
+ISTQB Certified Tester (CTFL)
+International Software Testing Qualifications Board • 2021
+Foundation Level Certification
+B.S. in Information Technology
+University of Illinois Chicago • 2016 – 2020
+Coursework: Database Systems, Software Lifecycle, Web Tech
+Alex Rivera — QA Manual Engineer Resume • Single-Page CV`,[]);
+ expect(cv.blocks.filter(b=>b.section==='technologies').map(b=>b.text).join(' ')).toContain('Postman (Manual API Testing)');
+ expect(cv.blocks.some(b=>b.section==='technologies'&&b.text.includes('SQL'))).toBe(true);
+ expect(cv.blocks.filter(b=>b.section==='certifications').map(b=>b.text).join(' ')).toContain('ISTQB Certified Tester');
+ const preparedRequest=JSON.parse(providerRequest({kind:'cv_extraction',text:cv.text,blocks:cv.blocks}).user);
+ expect(preparedRequest.sourceBlocks.some((b:{section:string;text:string})=>b.section==='certifications'&&b.text.includes('Certified Tester'))).toBe(true);
+ expect(JSON.stringify(preparedRequest.sourceBlocks)).not.toMatch(/degree|University|coursework/i);
+ expect(cv.text).toContain('Performed manual API validation using Postman.');
+ expect(cv.text).not.toMatch(/Alex Rivera|alex@example|555\)|Chicago|Apex FinTech|Information Technology|Illinois Chicago|Coursework|Bachelor|\bB\.S\./i);
+});
+it.each([
+ ['Name: Synthetic Person','Location: Synthetic City'],
+ ['Synthetic Training Institute','Colombo, Sri Lanka'],
+ ['2018 - 2022','GPA: 3.8'],
+])('CV-SEC-09 excludes credential-following personal/education lines: %s',(...excluded)=>{
+ const cv=prepareCvText(['EDUCATION & CERTIFICATIONS','ISTQB Certified Tester',...excluded,'Foundation Level Certification','WORK EXPERIENCE','Performed API testing.'].join('\n'));
+ const sent=JSON.stringify(JSON.parse(providerRequest({kind:'cv_extraction',text:cv.text,blocks:cv.blocks}).user).sourceBlocks);
+ expect(sent).toContain('ISTQB Certified Tester');expect(sent).toContain('Foundation Level Certification');expect(sent).toContain('Performed API testing.');
+ for(const line of excluded)expect(sent).not.toContain(line);
 });
 it('CV-SEC-02 preserves long wrapped negation, quoted context and rejects fabricated/misbound evidence',()=>{
  const cv=prepareCvText('Work Experience\nI have never '+ 'personally '.repeat(45)+'\nperformed API testing.');

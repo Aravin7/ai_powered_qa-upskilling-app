@@ -47,14 +47,21 @@ test('connected authenticated mock workflow: PDF review, plan, progress, fallbac
   }
   await page.getByRole('button',{name:'My skills',exact:true}).click();
   await page.getByLabel('Choose synthetic PDF').setInputFiles({name:'synthetic.pdf',mimeType:'application/pdf',buffer:Buffer.from(syntheticPdf(['Professional Summary','Experienced in API testing.','Work Experience','I authored test cases for a synthetic form.','Technologies','Playwright','Education','I used prompt engineering.','Extracurricular Activities','I configured CI/CD.']))});
+  const prepared=page.waitForResponse(response=>response.url().endsWith('/api/cv/prepare')&&response.request().method()==='POST');
+  await page.getByRole('button',{name:'Prepare private preview'}).click();expect((await prepared).status()).toBe(200);
+  await expect(page.getByRole('region',{name:'Prepared CV text review'})).toBeVisible();
+  expect(await client.aIAttempt.count({where:{operation:{userId:user.id}}})).toBe(0);
+  await expect(page.getByRole('button',{name:'Send reviewed text for skill suggestions'})).toBeDisabled();
+  const evidenceDir='docs/evidence/2026-10-17-pathway-exploration/legacy-cv-regression';await mkdir(evidenceDir,{recursive:true});
+  await page.screenshot({path:evidenceDir+'/00-prepared-preview.png',fullPage:true});
+  await page.getByRole('checkbox',{name:'I reviewed this prepared text and want to send it for skill suggestions.'}).check();
   const extracted=page.waitForResponse(response=>response.url().endsWith('/api/cv/extract')&&response.request().method()==='POST');
-  await page.getByRole('button',{name:'Extract candidate skills'}).click();
+  await page.getByRole('button',{name:'Send reviewed text for skill suggestions'}).click();
   const extraction=await extracted;
   expect(await extraction.json()).toMatchObject({code:'OK',data:{code:'CANDIDATES_READY'}});
   expect(extraction.status()).toBe(200);
   await expect(page.getByRole('heading',{name:'Temporary evidence · review before confirming'})).toBeVisible({timeout:15000});
   expect(await client.confirmedSkill.count({where:{userId:user.id}})).toBe(0);
-  const evidenceDir='docs/evidence/2026-10-17-cv-amendments';await mkdir(evidenceDir,{recursive:true});
   await expect(page.getByRole('checkbox',{name:'Select extracted Test automation'})).not.toBeChecked();
   await expect(page.getByRole('checkbox',{name:'Select extracted API testing'})).toBeChecked();
   await expect(page.getByText('Listed in CV—experience not demonstrated.',{exact:false})).toBeVisible();
@@ -67,7 +74,7 @@ test('connected authenticated mock workflow: PDF review, plan, progress, fallbac
   await page.reload();await page.getByRole('button',{name:'Learning roadmap',exact:true}).click();await expect(task).toBeChecked();
   await page.screenshot({path:evidenceDir+'/02-roadmap-progress-reloaded.png',fullPage:true});
   await page.getByRole('button',{name:'Check last operation / recover saved plan'}).click();await expect(page.getByRole('status').filter({hasText:'succeeded'})).toBeVisible();
-  await page.getByRole('button',{name:'My skills',exact:true}).click();await page.getByLabel('Choose synthetic PDF').setInputFiles({name:'bad.pdf',mimeType:'application/pdf',buffer:Buffer.from('not PDF')});await page.getByRole('button',{name:'Extract candidate skills'}).click();await expect(page.getByRole('status').filter({hasText:'PDF_MALFORMED'})).toBeVisible();
+  await page.getByRole('button',{name:'My skills',exact:true}).click();await page.getByLabel('Choose synthetic PDF').setInputFiles({name:'bad.pdf',mimeType:'application/pdf',buffer:Buffer.from('not PDF')});await page.getByRole('button',{name:'Prepare private preview'}).click();await expect(page.getByRole('status').filter({hasText:'PDF_MALFORMED'})).toBeVisible();
   expect(await client.confirmedSkill.count({where:{userId:user.id}})).toBe(3);
   await page.screenshot({path:evidenceDir+'/03-invalid-pdf-recovery.png',fullPage:true});
   await page.getByRole('button',{name:'Learning roadmap',exact:true}).click();await expect(task).toBeChecked();

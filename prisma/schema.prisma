@@ -24,6 +24,19 @@ model User {
   consents Consent[]
   roadmaps Roadmap[]
   operations AIOperation[]
+  pathwayExploration PathwayExploration?
+  reviewedDirection ReviewedDirection?
+}
+model PathwayExploration {
+  userId String @id
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  preferences Json
+  suggestions Json @default("[]")
+  inputRevision Int
+  libraryVersion String
+  selectedSuggestionId String?
+  operationId String?
+  resourcePreviews Json @default("[]")
 }
 model Profile {
   userId String @id
@@ -45,7 +58,46 @@ model ConfirmedSkill {
   source String @default("manual")
   catalogueVersion String
   confirmedAt DateTime @default(now())
+  capabilityConfirmation CapabilityConfirmation?
   @@unique([userId, key])
+}
+// Registered snapshots are immutable; registration alone does not activate content.
+model RequirementSnapshot {
+  version String @id
+  contentDigest String
+  content Json
+  reviewEvidenceReference String
+  registeredAt DateTime @default(now())
+  confirmations CapabilityConfirmation[]
+  activations RequirementActivation[]
+  selections ReviewedDirection[]
+}
+model ReviewedDirection {
+  userId String @id
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  snapshotVersion String
+  snapshot RequirementSnapshot @relation(fields:[snapshotVersion], references:[version], onDelete:Restrict)
+  directionId String
+  label String
+  deferredCapabilityIds String[] @default([])
+  requirementSetId String
+  resourcePreviews Json @default("[]")
+}
+model RequirementActivation {
+  id String @id
+  version String
+  snapshot RequirementSnapshot @relation(fields:[version], references:[version], onDelete:Restrict)
+  revision Int @default(1)
+  activatedAt DateTime @default(now())
+}
+model CapabilityConfirmation {
+  skillId String @id
+  skill ConfirmedSkill @relation(fields:[skillId], references:[id], onDelete:Cascade)
+  snapshotVersion String
+  snapshot RequirementSnapshot @relation(fields:[snapshotVersion], references:[version], onDelete:Restrict)
+  capabilityId String
+  meaningVersion String
+  confirmedAt DateTime @default(now())
 }
 model Consent {
   id String @id @default(uuid())
