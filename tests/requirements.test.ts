@@ -11,9 +11,19 @@ function fixture():RequirementLibrary{
 }
 const known=(canonicalSkillId:string,meaningVersion='v1')=>({canonicalSkillId,label:canonicalSkillId,meaningVersion});
 describe('R06/T06/T12/T15 reviewed requirement compilation - pure synthetic cases, no provider/DB',()=>{
- it('RQ-01: actual fourteen-capability draft validates but cannot drive authoritative comparison',()=>{
-  expect(validateRequirementLibrary(requirementDraft,now).capabilities).toHaveLength(14);
-  expect(()=>compareSelectedRequirements(requirementDraft,['ci'],[],now)).toThrow(/dated content review/);
+ it('RQ-01: five proposed direction rules validate but stay blocked pending review of v4',()=>{
+  const draft=validateRequirementLibrary(requirementDraft,now);expect(draft.capabilities).toHaveLength(14);
+  expect(draft.directionRules).toHaveLength(5);expect(draft.review).toBeNull();
+  expect(()=>compileDirectionRequirements(draft,selection(),now)).toThrow(/dated content review/);
+  const synthetic=structuredClone(draft);synthetic.review={reviewer:'Synthetic test only',reviewedOn:'2026-10-18',contentDigest:requirementContentDigest(synthetic,now)};
+  const genai=compileDirectionRequirements(synthetic,{directionId:'genai-application-testing',deferredCapabilityIds:[]},now);
+  const delivery=compileDirectionRequirements(synthetic,{directionId:'ai-automation-delivery-gates',deferredCapabilityIds:[]},now);
+  expect(genai.capabilities.find(item=>item.id==='llm-evaluation')?.priority).toBe('critical');
+  expect(delivery.capabilities.find(item=>item.id==='llm-evaluation')?.priority).toBe('critical');
+  expect(delivery.capabilities.find(item=>item.id==='load-testing')?.priority).toBe('nice');
+  const performance=compileDirectionRequirements(synthetic,{directionId:'ai-application-reliability',deferredCapabilityIds:[]},now);
+  expect(performance.capabilities.find(item=>item.id==='load-testing')).toMatchObject({priority:'important',mandatory:true});
+  expect(performance.capabilities.some(item=>item.id==='automation')).toBe(false);
  });
  it.each([
   (library:RequirementLibrary)=>{library.capabilities[0].prerequisites=['ci'];},
@@ -96,6 +106,18 @@ function directionFixture(){
 }
 const selection=(directionId='delivery',deferredCapabilityIds:string[]=[])=>({directionId,deferredCapabilityIds});
 describe('R06 amended direction contracts: synthetic review metadata only',()=>{
+ it('DR-10: prerequisites inherit the highest dependent priority transitively, independent of root order',()=>{
+  const library=directionFixture();
+  library.directionRules[0].requirements.push({capabilityId:'ci',priority:'critical'});
+  library.directionRules[0].requirements=library.directionRules[0].requirements.filter((item,index)=>index!==0);
+  library.directionRules[0].requirements.push({capabilityId:'automation',priority:'nice'});
+  library.review!.contentDigest=requirementContentDigest(library,now);
+  const first=compileDirectionRequirements(library,selection(),now);
+  for(const id of ['design','automation','ci'])expect(first.capabilities.find(item=>item.id===id)).toMatchObject({priority:'critical',mandatory:true});
+  expect(first.capabilities.find(item=>item.id==='load')).toMatchObject({priority:'nice',mandatory:false});
+  library.directionRules[0].requirements.reverse();
+  expect(compileDirectionRequirements(library,selection(),now)).toEqual(first);
+ });
  it('DR-01: the same capability has different priority and mandatory status by direction',()=>{
   const library=directionFixture();
   expect(compileDirectionRequirements(library,selection(),now).capabilities.find(item=>item.id==='ci')).toMatchObject({priority:'important',mandatory:true});
@@ -160,7 +182,7 @@ describe('R06 amended direction contracts: synthetic review metadata only',()=>{
   expect(result.capabilities).toEqual([]);expect(result.outcome).toBe('no_gaps');
   expect(result.deferredCapabilityIds).toEqual(['design','automation','ci']);
  });
- it('DR-12: reconfirmation and unreviewed library gates remain intact',()=>{
+ it('DR-12: reconfirmation and unreviewed-library gates remain intact',()=>{
   expect(()=>compileDirectionRequirements(requirementDraft,selection(),now)).toThrow(/dated content review/);
   const result=compareDirectionRequirements(directionFixture(),selection(),[known('automation','old')],now);
   expect(result.reconfirmationIds).toEqual(['automation']);expect(result.strengthIds).toEqual([]);

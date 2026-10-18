@@ -10,10 +10,17 @@ function fixture():RequirementLibrary{
 }
 const selected={directionId:'delivery',deferredCapabilityIds:['observability']};
 describe('R06/R07/R12 complete scope and honest effort, synthetic only',()=>{
- it('RC-01: all fourteen draft nodes have explicit boundaries/effort, but remain unapproved',()=>{
+ it('RC-01: v4 draft has complete boundaries/effort and proposed rules but remains unreviewed',()=>{
   const library=validateRequirementLibrary(requirementDraft,now);expect(library.capabilities).toHaveLength(14);
+  expect(library.directionRules).toHaveLength(5);expect(library.review).toBeNull();
   expect(library.capabilities.every(node=>node.scope&&node.effort)).toBe(true);
-  expect(library.capabilities.find(node=>node.id==='observability')!.prerequisites).toEqual(['api-testing']);
+  expect(library.capabilities.find(node=>node.id==='observability')!.prerequisites).toEqual(['api-testing','llm-evaluation']);
+  expect(library.capabilities.find(node=>node.id==='llm-evaluation')!.prerequisites).toEqual(['api-testing','ai-basics']);
+  expect(library.capabilities.find(node=>node.id==='test-design')!.meaningVersion).toBe('draft-v4');
+  expect(library.capabilities.find(node=>node.id==='llm-evaluation')!.meaningVersion).toBe('draft-v4-r3');
+  expect(library.capabilities.find(node=>node.id==='ai-security')!.prerequisites).toContain('llm-evaluation');
+  expect(library.capabilities.find(node=>node.id==='load-testing')!.priority).toBe('nice');
+  expect(library.capabilities.find(node=>node.id==='generated-test-review')).toBeDefined();
   expect(library.capabilities.find(node=>node.id==='ci')!.aliases).not.toContain('ci/cd');
   expect(()=>publicationReadyLibrary(library,now)).toThrow(/dated content review/);
  });

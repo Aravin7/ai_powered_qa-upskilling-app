@@ -161,14 +161,23 @@ export function compileDirectionRequirements(input:unknown,selectionInput:unknow
  const retained=closure(rule.requirements.filter(item=>!deferred.has(item.capabilityId)).map(item=>item.capabilityId));
  if([...deferred].some(nodeId=>retained.included.has(nodeId)))throw new DomainError('INVALID_DEFERRAL','A deferred topic is still required by retained work.',409);
  const all=closure(rule.requirements.map(item=>item.capabilityId));
+ const priorityRank={nice:0,important:1,critical:2};
+ const priorities=new Map<string,'critical'|'important'|'nice'>();
+ const inherit=(nodeId:string,priority:'critical'|'important'|'nice')=>{
+  const current=priorities.get(nodeId);
+  if(current&&priorityRank[current]>=priorityRank[priority])return;
+  priorities.set(nodeId,priority);
+  for(const prerequisite of nodes.get(nodeId)!.prerequisites)inherit(prerequisite,priority);
+ };
+ for(const root of rule.requirements)if(!deferred.has(root.capabilityId))inherit(root.capabilityId,root.priority);
  const contentDigest=requirementContentDigest(library,now);
- const requirementSetId=`requirements-${createHash('sha256').update(JSON.stringify({contentDigest,directionId:rule.id,deferred:[...deferred].sort()})).digest('hex')}`;
+ const requirementSetId=`requirements-${createHash('sha256').update(JSON.stringify({contentDigest,directionId:rule.id,deferred:[...deferred].sort(),priorityPolicy:'highest-dependent-v1'})).digest('hex')}`;
  return {requirementSetId,libraryVersion:library.version,contentDigest,directionId:rule.id,deferredRootIds:[...deferred].sort(),
   deferredCapabilityIds:all.ordered.filter(nodeId=>!retained.included.has(nodeId)),
   capabilities:retained.ordered.map(nodeId=>{
-   const capability=nodes.get(nodeId)!;const explicit=rule.requirements.find(item=>item.capabilityId===nodeId);
+   const capability=nodes.get(nodeId)!;
    // Override legacy global priority; only the reviewed direction and closure apply.
-   return {...capability,priority:mandatory.has(nodeId)?explicit?.priority==='critical'?'critical' as const:'important' as const:'nice' as const,mandatory:mandatory.has(nodeId)};
+   return {...capability,priority:priorities.get(nodeId)!,mandatory:mandatory.has(nodeId)};
   })};
 }
 
