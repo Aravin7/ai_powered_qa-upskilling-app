@@ -1,11 +1,15 @@
 import { AI_LIMITS } from './ai-config';
-import { GROQ_MODEL } from './ai-execution';
+import { GROQ_MODEL, GROQ_NATIVE_TOOL_LIMIT } from './ai-execution';
 import { ProviderFailure, type AIProvider, type ProviderInput } from './ai-provider';
 import { providerRequest } from './ai-provider-request';
 import { DomainError } from './domain';
+import { groqResourceResearchRequest, parseGroqNativeResearch, type NativeResearchDiagnostic } from './groq-resource-research';
 
-type Options={apiKey:string;model:string;maxOutputTokens?:number;maxRequestBytes?:number;fetchImpl?:typeof fetch};
+type Options={apiKey:string;model:string;maxOutputTokens?:number;maxRequestBytes?:number;fetchImpl?:typeof fetch;planningApprovalReference?:string;nativeResearch?:{approvalReference:string;maxNativeToolCalls:number};onResearchDiagnostic?:(event:NativeResearchDiagnostic)=>void};
 const strings={type:'array',items:{type:'string'}};
+const pathwaySchema={type:'object',additionalProperties:false,required:['suggestions'],properties:{suggestions:{type:'array',items:{type:'object',additionalProperties:false,required:['title','why','capabilityIds','transferableSkillIds','practicalWork','uncertainty'],properties:{title:{type:'string'},why:{type:'string'},capabilityIds:strings,transferableSkillIds:strings,practicalWork:{type:'string'},uncertainty:{type:'string'}}}}}};
+const resourceSchema={type:'object',additionalProperties:false,required:['documentationId','supportingId'],properties:{documentationId:{type:'string'},supportingId:{type:'string'}}};
+const checkedResourceSchema={...resourceSchema,required:[...resourceSchema.required,'evidence'],properties:{...resourceSchema.properties,evidence:{type:'array',items:{type:'object',additionalProperties:false,required:['candidateId','topicExcerpt','access','accessExcerpt'],properties:{candidateId:{type:'string'},topicExcerpt:{type:'string'},access:{type:'string',enum:['public-page','sign-in','payment','unclear']},accessExcerpt:{type:'string'}}}}}};
 const extractionSchema={type:'object',additionalProperties:false,required:['skills'],properties:{skills:{type:'array',items:{
  type:'object',additionalProperties:false,required:['skillId','label','evidenceExcerpt','sourceId'],
  properties:{skillId:{type:['string','null']},label:{type:'string'},evidenceExcerpt:{type:'string'},sourceId:{type:['string','null']}},
@@ -29,14 +33,16 @@ async function boundedBody(response:Response){
  const bytes=new Uint8Array(length);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
  try{return JSON.parse(new TextDecoder().decode(bytes)) as unknown;}catch{throw new ProviderFailure('PROVIDER_INCOMPLETE');}
 }
-export function createGroqProvider({apiKey,model,maxOutputTokens=4096,maxRequestBytes=64000,fetchImpl=fetch}:Options):AIProvider{
+export function createGroqProvider({apiKey,model,maxOutputTokens=4096,maxRequestBytes=64000,fetchImpl=fetch,nativeResearch,planningApprovalReference,onResearchDiagnostic}:Options):AIProvider{
  if(!apiKey||model!==GROQ_MODEL)throw new Error('Groq needs a server key and the configured fixed model.');
  function requestBody(input:ProviderInput){
-  if(input.kind==='pathway_suggestions')throw new DomainError('PATHWAY_LIVE_DISABLED','Live pathway suggestions need reviewed capabilities and an updated approved disclosure. Local mock exploration remains available.',503);
+  if((input.kind==='pathway_suggestions'||input.kind==='reviewed_roadmap')&&!planningApprovalReference?.trim())throw new DomainError('PATHWAY_LIVE_DISABLED','Live direction planning requires reviewed content and an updated approved disclosure.',503);
+  if(input.kind==='resource_research'&&(!nativeResearch?.approvalReference.trim()||!Number.isInteger(nativeResearch.maxNativeToolCalls)||nativeResearch.maxNativeToolCalls<1||nativeResearch.maxNativeToolCalls>GROQ_NATIVE_TOOL_LIMIT))throw new DomainError('RESOURCE_LIVE_DISABLED','Live resource research requires approved native-tool usage, disclosure and funding controls.',503);
   const prompt=providerRequest(input);
-  const body=JSON.stringify({model,messages:[{role:'system',content:prompt.system},{role:'user',content:prompt.user}],
+  const schema=input.kind==='cv_extraction'?extractionSchema:input.kind==='pathway_suggestions'?pathwaySchema:input.kind==='resource_research'?(input.phase==='select'&&input.pages?checkedResourceSchema:resourceSchema):roadmapSchema;
+  const body=JSON.stringify(input.kind==='resource_research'&&input.phase==='search'?{...groqResourceResearchRequest(input.context,nativeResearch!.maxNativeToolCalls),max_completion_tokens:Math.min(maxOutputTokens,2048)}:{model,messages:[{role:'system',content:prompt.system},{role:'user',content:prompt.user}],
    max_completion_tokens:maxOutputTokens,reasoning_effort:'low',include_reasoning:false,stream:false,
-   response_format:{type:'json_schema',json_schema:{name:input.kind,strict:true,schema:input.kind==='cv_extraction'?extractionSchema:roadmapSchema}}});
+   response_format:{type:'json_schema',json_schema:{name:input.kind,strict:true,schema}}});
   if(Buffer.byteLength(body)>maxRequestBytes)throw new DomainError('PROVIDER_INPUT_LIMIT','Minimized provider request exceeds the byte ceiling. Use manual entry or a smaller CV.',422);
   return body;
  }
@@ -44,17 +50,21 @@ export function createGroqProvider({apiKey,model,maxOutputTokens=4096,maxRequest
   signal.throwIfAborted();const body=requestBody(input);let response:Response;
   try{response=await fetchImpl('https://api.groq.com/openai/v1/chat/completions',{method:'POST',cache:'no-store',redirect:'error',signal,
    headers:{'Content-Type':'application/json',Authorization:`Bearer ${apiKey}`},body});
-  }catch(error){if(signal.aborted)throw error;throw new ProviderFailure('PROVIDER_UNAVAILABLE');}
+  }catch{if(signal.aborted)throw signal.reason;throw new ProviderFailure('PROVIDER_CONNECTION_FAILED');}
   // Never expose echoed provider error bodies. Rate limits require a deliberate later retry.
   if(response.status===429)throw new DomainError('PROVIDER_RATE_LIMIT','Groq rate limit reached. Wait before a deliberate retry; existing data is preserved.',429);
   if(!response.ok)throw new ProviderFailure('PROVIDER_UNAVAILABLE',response.status>=500,response.status);
   let raw:unknown;
-  try{raw=await boundedBody(response);}catch(error){if(error instanceof ProviderFailure||signal.aborted)throw error;throw new ProviderFailure('PROVIDER_UNAVAILABLE');}
+  try{raw=await boundedBody(response);}catch(error){if(signal.aborted)throw signal.reason;if(error instanceof ProviderFailure)throw error;throw new ProviderFailure('PROVIDER_RESPONSE_INTERRUPTED');}
   if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new ProviderFailure('PROVIDER_INCOMPLETE');
-  const envelope=raw as {choices?:{finish_reason?:string;message?:{content?:unknown;refusal?:unknown;tool_calls?:unknown}}[]};
+  const envelope=raw as {id?:unknown;choices?:{finish_reason?:string;message?:{content?:unknown;refusal?:unknown;tool_calls?:unknown}}[]};
   const choice=Array.isArray(envelope.choices)?envelope.choices[0]:undefined;
   if(choice?.message?.refusal||choice?.finish_reason==='content_filter')throw new ProviderFailure('PROVIDER_REFUSED',false);
   if(!choice||choice.finish_reason!=='stop'||choice.message?.tool_calls)throw new ProviderFailure('PROVIDER_INCOMPLETE');
+  if(input.kind==='resource_research'&&input.phase==='search'){
+   if(typeof envelope.id!=='string')throw new ProviderFailure('PROVIDER_INCOMPLETE',false);
+   return parseGroqNativeResearch(choice.message,nativeResearch!.maxNativeToolCalls,envelope.id,onResearchDiagnostic);
+  }
   const output=choice.message?.content;
   if(typeof output!=='string'||!output||Buffer.byteLength(output)>AI_LIMITS.outputBytes)throw new ProviderFailure('PROVIDER_INCOMPLETE');
   try{return JSON.parse(output) as unknown;}catch{throw new ProviderFailure('PROVIDER_INCOMPLETE');}

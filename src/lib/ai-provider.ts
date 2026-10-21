@@ -2,7 +2,7 @@ import { catalogue } from './catalogue';
 import { compare, DomainError } from './domain';
 import { candidateEvidence, evidenceClauses } from './ai-output';
 import type { CvBlock } from './cv-text';
-import { mockConfiguration } from './ai-config';
+import { AI_LIMITS, mockConfiguration } from './ai-config';
 import type { Profile, SkillEntry } from './types';
 import { mockPathwayOutput, type PathwayProviderInput } from './pathways';
 import { mockResearchOutput, type ResearchProviderInput } from './resource-preview';
@@ -10,7 +10,25 @@ import { mockReviewedPlan, type ReviewedRoadmapProviderInput } from './reviewed-
 export type ProviderInput=ReviewedRoadmapProviderInput|ResearchProviderInput|PathwayProviderInput|{kind:'cv_extraction';text:string;blocks?:CvBlock[];correction?:string}|{kind:'roadmap_generation';profile:Pick<Profile,'hoursPerWeek'>;skills:Pick<SkillEntry,'canonicalSkillId'>[]};
 export interface AIProvider {readonly model:string;checkInput?(input:ProviderInput):void;respond(input:ProviderInput,signal:AbortSignal):Promise<unknown>}
 export class ProviderFailure extends DomainError {
- constructor(code:'PROVIDER_REFUSED'|'PROVIDER_INCOMPLETE'|'PROVIDER_UNAVAILABLE',public retryable=true,public readonly providerStatus?:number){super(code,providerStatus===401?'Groq rejected the server API key (HTTP 401). Check GROQ_API_KEY and restart the application. Existing data is preserved.':'The AI provider could not supply a complete valid response. Existing data is preserved.',502)}
+ constructor(code:'PROVIDER_REFUSED'|'PROVIDER_INCOMPLETE'|'PROVIDER_UNAVAILABLE'|'PROVIDER_TIMEOUT'|'PROVIDER_CONNECTION_FAILED'|'PROVIDER_RESPONSE_INTERRUPTED',public retryable=true,public readonly providerStatus?:number){super(code,code==='PROVIDER_TIMEOUT'?'The AI request exceeded its time limit. Existing data is preserved.':code==='PROVIDER_CONNECTION_FAILED'?'Could not obtain an HTTP response from the AI provider. Existing data is preserved.':code==='PROVIDER_RESPONSE_INTERRUPTED'?'The AI response was interrupted while reading it. Existing data is preserved.':providerStatus===401?'Groq rejected the server API key (HTTP 401). Check GROQ_API_KEY and restart the application. Existing data is preserved.':'The AI provider could not supply a complete valid response. Existing data is preserved.',502)}
+}
+// Search leaves time for the 5s page check, 12s selection and 3s save margin.
+export function providerAttemptTimeout(input:ProviderInput,remainingMs:number){
+ const search=input.kind==='resource_research'&&input.phase==='search';
+ const available=remainingMs-(search?5000+AI_LIMITS.providerMs+3000:3000);
+ if(available<=0)throw new DomainError('DEADLINE','Insufficient time for processing and saving. Existing data is preserved.',504);
+ return Math.min(search?AI_LIMITS.resourceSearchMs:AI_LIMITS.providerMs,available);
+}
+// One timed attempt; accounting and retry decisions remain with the caller.
+export async function timedProviderResponse(provider:AIProvider,input:ProviderInput,timeoutMs:number){
+ const controller=new AbortController();let timer:ReturnType<typeof setTimeout>|undefined;
+ try{return await Promise.race([
+  provider.respond(input,controller.signal),
+  new Promise<never>((_,reject)=>{timer=setTimeout(()=>{
+   const failure=new ProviderFailure('PROVIDER_TIMEOUT');
+   reject(failure);controller.abort(failure);
+  },Math.max(1,timeoutMs));}),
+ ]);}finally{clearTimeout(timer);controller.abort();}
 }
 export const mockProvider:AIProvider={model:'mock-fixture-v1',async respond(input,signal){
  mockConfiguration();signal.throwIfAborted();

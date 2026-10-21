@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { DomainError } from './domain';
-import { resourceCandidates, resourceContextSchema, resourceSelectionSchema, searchResultsSchema, providerSourcesSchema, validateDiscoveredPair, type ResourceCandidate, type ResourceContext } from './resource-discovery';
+import { resourceCandidates, resourceContextSchema, resourceSelectionSchema, searchResultsSchema, providerSourcesSchema, nativeCitationSchema, validateDiscoveredPair, type ResourceCandidate, type ResourceContext } from './resource-discovery';
 
 export const resourcePreviewRequestSchema=z.object({
  operationKey:z.string().uuid(),expectedPlanningRevision:z.number().int().nonnegative(),
@@ -8,7 +8,7 @@ export const resourcePreviewRequestSchema=z.object({
 }).strict();
 export type ResearchProviderInput=
  |{kind:'resource_research';phase:'search';context:ResourceContext}
- |{kind:'resource_research';phase:'select';context:ResourceContext;candidates:ResourceCandidate[]};
+ |{kind:'resource_research';phase:'select';context:ResourceContext;candidates:ResourceCandidate[];pages?:import('./resource-page-verifier').InspectedPage[]};
 const envelopeSchema=z.object({results:searchResultsSchema,sources:providerSourcesSchema}).strict();
 export function validateResearchEnvelope(output:unknown){
  const envelope=envelopeSchema.parse(output);
@@ -21,11 +21,12 @@ const storedResourceSchema=z.object({
  id:z.string().min(1).max(80),sourceId:z.string().min(1).max(120),title:z.string().min(1).max(240),
  url:z.string().url().max(2048),publisher:z.string().min(1).max(160),
  kind:z.enum(['documentation','tutorial','course','video']),accessNote:z.string().min(1).max(400),
- checkedAt:z.string().datetime(),reviewStatus:z.literal('synthetic_only'),
+ checkedAt:z.string().datetime(),reviewStatus:z.enum(['synthetic_only','automatically_checked']),
+ citation:nativeCitationSchema.optional(),
 }).strict();
 export const storedResourcePreviewSchema=resourceContextSchema.extend({
  resources:z.array(storedResourceSchema).length(2),professionalReview:z.null(),
- mode:z.literal('mock'),model:z.string().min(1).max(120),inputRevision:z.number().int().nonnegative(),
+ mode:z.enum(['mock','groq']),model:z.string().min(1).max(120),inputRevision:z.number().int().nonnegative(),
  libraryVersion:z.string().min(1).max(100),operationId:z.string().uuid(),
 }).strict();
 export type ResourcePreview=z.infer<typeof storedResourcePreviewSchema>;

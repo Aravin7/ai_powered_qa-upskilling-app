@@ -1,0 +1,19 @@
+{
+  "checkedAt": "2026-10-19T02:33:26.569Z",
+  "database": "qa_pathways_live_20261019",
+  "host": "127.0.0.1:55471",
+  "budget": {
+    "id": "live-reviewed-synthetic-v1",
+    "mode": "groq",
+    "currency": "REQUESTS",
+    "ceiling": 5,
+    "reserved": 5,
+    "enabled": true
+  },
+  "cleanup": {
+    "users": 0,
+    "roadmaps": 0,
+    "active_requirement_pointers": 0,
+    "retained_test_snapshots": 5
+  }
+}

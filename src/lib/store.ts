@@ -49,8 +49,10 @@ export async function getState(client:PrismaClient,claims:Claims):Promise<AppSta
   const frozen=reviewedPlanViewSchema.safeParse(roadmap?.planningSnapshot);
   const reviewed=frozen.success?{mode:frozen.data.mode,directionLabel:frozen.data.directionLabel,libraryVersion:frozen.data.context.libraryVersion,requirementSetId:frozen.data.context.requirementSetId,current:active?.version===frozen.data.context.libraryVersion,resources:frozen.data.resources}:undefined;
   const processing=await processingDisclosure(tx);
+  const suggestions=exploration?storedSuggestionsSchema.parse(exploration.suggestions):[];
+  const explorationCurrent=!!exploration&&exploration.libraryVersion===(suggestions.some(item=>item.generationMode==='groq')?active?.version:capabilityLibrary.version);
   for(const c of consents)if(c.purpose in current)current[c.purpose as keyof typeof current]=c.policyVersion===processing.policyVersion&&c.granted;
-  return {processing,reviewedDirection,name:user.name,pathwayExploration:exploration?{preferences:preferenceSchema.parse(exploration.preferences),suggestions:storedSuggestionsSchema.parse(exploration.suggestions),inputRevision:exploration.inputRevision,libraryVersion:exploration.libraryVersion,selectedSuggestionId:exploration.selectedSuggestionId,resourcePreviews:storedResourcePreviewsSchema.parse(exploration.resourcePreviews)}:null,profile:{currentRole:p.currentRole,yearsExperience:p.yearsExperience,hoursPerWeek:p.hoursPerWeek,confirmed:p.confirmed,inventoryConfirmed:p.inventoryConfirmed,planningRevision:p.planningRevision},skills:skills.map(s=>({key:s.key,canonicalSkillId:s.canonicalSkillId,label:s.label,source:s.source as SkillEntry['source']})),consents:current,roadmap:roadmap?{reviewed,id:roadmap.id,inputRevision:roadmap.inputRevision,catalogueVersion:roadmap.catalogueVersion,createdAt:roadmap.createdAt.toISOString(),deferredSkillIds:roadmap.deferredSkillIds,tasks:roadmap.tasks.map(t=>({id:t.id,week:t.week,kind:t.kind as 'learning'|'practical',title:t.title,activity:t.activity,completionCriterion:t.completionCriterion,skillIds:t.skillIds,resourceIds:t.resourceIds,estimatedMinutes:t.estimatedMinutes,completed:t.completed,revision:t.revision}))}:null,archivedRoadmaps:[]};
+  return {processing,reviewedDirection,name:user.name,pathwayExploration:exploration?{preferences:preferenceSchema.parse(exploration.preferences),suggestions,current:explorationCurrent,inputRevision:exploration.inputRevision,libraryVersion:exploration.libraryVersion,selectedSuggestionId:exploration.selectedSuggestionId,resourcePreviews:storedResourcePreviewsSchema.parse(exploration.resourcePreviews)}:null,profile:{currentRole:p.currentRole,yearsExperience:p.yearsExperience,hoursPerWeek:p.hoursPerWeek,confirmed:p.confirmed,inventoryConfirmed:p.inventoryConfirmed,planningRevision:p.planningRevision},skills:skills.map(s=>({key:s.key,canonicalSkillId:s.canonicalSkillId,label:s.label,source:s.source as SkillEntry['source']})),consents:current,roadmap:roadmap?{reviewed,id:roadmap.id,inputRevision:roadmap.inputRevision,catalogueVersion:roadmap.catalogueVersion,createdAt:roadmap.createdAt.toISOString(),deferredSkillIds:roadmap.deferredSkillIds,tasks:roadmap.tasks.map(t=>({id:t.id,week:t.week,kind:t.kind as 'learning'|'practical',title:t.title,activity:t.activity,completionCriterion:t.completionCriterion,skillIds:t.skillIds,resourceIds:t.resourceIds,estimatedMinutes:t.estimatedMinutes,completed:t.completed,revision:t.revision}))}:null,archivedRoadmaps:[]};
  },{isolationLevel:'RepeatableRead'});
 }
 export async function putProfile(client:PrismaClient,claims:Claims,input:unknown) {
@@ -147,10 +149,12 @@ export async function selectPathway(client:PrismaClient,claims:Claims,input:unkn
   const profile=await tx.profile.findUniqueOrThrow({where:{userId:claims.id}});
   assertRevision(profile.planningRevision,body.expectedPlanningRevision);
   const row=await tx.pathwayExploration.findUnique({where:{userId:claims.id}});
+  const savedSuggestions=row?storedSuggestionsSchema.parse(row.suggestions):[];
+  const currentVersion=savedSuggestions.some(item=>item.generationMode==='groq')?(await tx.requirementActivation.findUnique({where:{id:'active'}}))?.version:capabilityLibrary.version;
   if(body.suggestionId){
-   if(!row||row.inputRevision!==profile.planningRevision||row.libraryVersion!==capabilityLibrary.version)
+   if(!row||row.inputRevision!==profile.planningRevision||row.libraryVersion!==currentVersion)
     throw new DomainError('STALE_INPUT','Refresh suggestions for your current saved inputs before selecting.',409);
-   if(!storedSuggestionsSchema.parse(row.suggestions).some(suggestion=>suggestion.id===body.suggestionId))
+   if(!savedSuggestions.some(suggestion=>suggestion.id===body.suggestionId))
     throw new DomainError('UNKNOWN_DIRECTION','Choose one of your saved suggestions.',400);
   }
   if(!row||row.selectedSuggestionId===body.suggestionId)return;
