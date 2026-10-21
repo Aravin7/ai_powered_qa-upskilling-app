@@ -35,7 +35,7 @@ async function handler(req:Request,ctx:{params:Promise<{path:string[]}>}){
   else if(req.method==='PUT'&&path==='pathways/reviewed')data=await saveReviewedDirection(client,claims,await readJson(req));
   else if(req.method==='POST'&&path==='pathways/reviewed/resources'){
    const result=await researchReviewedResources(client,claims,await readJson(req));
-   return response(result.code,'Synthetic topic resources saved; no live web research or page checks.',result);
+   return response(result.code,result.code==='RESOURCES_READY'?'Topic resources saved with automatic source/page checks; not professional review.':'Synthetic topic resource operation status; no live page checks.',result);
   }
   else if(req.method==='GET'&&path==='requirements/active')data=await currentSkillReviewAvailability(client,claims);
   else if(req.method==='GET'&&path==='skills/reconciliation'){
@@ -64,7 +64,7 @@ async function handler(req:Request,ctx:{params:Promise<{path:string[]}>}){
   else if(req.method==='PUT'&&path==='pathways/select')data=await selectPathway(client,claims,await readJson(req));
   else if(req.method==='POST'&&path==='pathways/suggest'){
    const result=await suggestPathways(client,claims,await readJson(req));
-   return response(result.code,'Provisional pathway operation status; mock generation only.',result);
+   return response(result.code,'Direction suggestion operation status; suggestions do not certify skills or suitability.',result);
   }
   else if(req.method==='PUT'&&path==='skills')data=await putSkills(client,claims,await readJson(req));
   else if(req.method==='PUT'&&path==='consent')data=await putConsent(client,claims,consentSchema.parse(await readJson(req)));

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { catalogue } from './catalogue';
 import { DomainError } from './domain';
+import { compileDirectionRequirements, publicationReadyLibrary, type RequirementLibrary } from './requirements';
 
 export const interestLabels = {
   'ai-assistance': 'AI-assisted testing', 'ai-quality': 'Testing AI applications',
@@ -38,33 +39,43 @@ export const pathwayOutputSchema = z.object({ suggestions: z.array(z.object({
   title: boundedText(140), why: boundedText(600), capabilityIds: z.array(z.string().max(80)).min(2).max(12),
   transferableSkillIds: z.array(z.string().max(80)).max(20), practicalWork: boundedText(600), uncertainty: boundedText(500),
 }).strict()).min(1).max(6) }).strict();
-export type PathwaySuggestion = z.infer<typeof pathwayOutputSchema>['suggestions'][number] & {
-  id: string; provisional: true; libraryVersion: string;
-};
 export const storedSuggestionsSchema = z.array(pathwayOutputSchema.shape.suggestions.element.extend({
   id:z.string().min(1).max(80), provisional:z.literal(true), libraryVersion:z.string().min(1).max(100),
+  capabilityLabels:z.array(z.object({id:z.string().max(80),label:z.string().max(140)}).strict()).max(100).optional(),
+  reviewedDirectionId:z.string().max(80).optional(),sourceNote:z.string().max(300).optional(),generationMode:z.enum(['mock','groq']).optional(),
 }).strict()).max(6);
+export type PathwaySuggestion=z.infer<typeof storedSuggestionsSchema>[number];
+export type PathwayVocabulary={version:string;reviewed:boolean;provenance:string;capabilities:readonly {id:string;label:string;canonicalSkillId:string|null}[];directions?:{id:string;label:string;capabilityIds:string[]}[]};
+export function reviewedPathwayVocabulary(input:RequirementLibrary):PathwayVocabulary{
+ const library=publicationReadyLibrary(input);
+ return {version:library.version,reviewed:true,provenance:'Active reviewed QA capability requirements; suggestions are provisional until the learner saves a reviewed direction.',
+  capabilities:library.capabilities.map(item=>({id:item.id,label:item.label,canonicalSkillId:item.id})),
+  directions:library.directionRules.map(rule=>({id:rule.id,label:rule.label,capabilityIds:compileDirectionRequirements(library,{directionId:rule.id,deferredCapabilityIds:[]}).capabilities.map(item=>item.id)}))};
+}
 export type PathwayExploration = {
   preferences: PathwayPreferences; suggestions: PathwaySuggestion[]; inputRevision: number;
   libraryVersion: string; selectedSuggestionId: string | null;
-  resourcePreviews?:import('./resource-preview').ResourcePreview[];
+  resourcePreviews?:import('./resource-preview').ResourcePreview[];current?:boolean;
 };
 export type PathwayProviderInput = {
-  kind: 'pathway_suggestions'; preferences: PathwayPreferences; confirmedSkillIds: string[]; hoursPerWeek: number;
+  kind: 'pathway_suggestions'; preferences: PathwayPreferences; confirmedSkillIds: string[]; hoursPerWeek: number;library?:PathwayVocabulary;
 };
-export function validatePathwaySuggestions(output: unknown, confirmedSkillIds: readonly string[]): PathwaySuggestion[] {
+export function validatePathwaySuggestions(output: unknown, confirmedSkillIds: readonly string[],library:PathwayVocabulary=capabilityLibrary): PathwaySuggestion[] {
   const parsed = pathwayOutputSchema.parse(output);
   const known = new Set(confirmedSkillIds);
   const combinations = new Set<string>();
   return parsed.suggestions.map((suggestion, index) => {
     const key = [...suggestion.capabilityIds].sort().join('|');
     if (new Set(suggestion.capabilityIds).size !== suggestion.capabilityIds.length || combinations.has(key) ||
-        suggestion.capabilityIds.some(id => !capabilityLibrary.capabilities.some(capability => capability.id === id)) ||
+        suggestion.capabilityIds.some(id => !library.capabilities.some(capability => capability.id === id)) ||
         new Set(suggestion.transferableSkillIds).size !== suggestion.transferableSkillIds.length ||
         suggestion.transferableSkillIds.some(id => !known.has(id) || !suggestion.capabilityIds.includes(id)))
       throw new DomainError('INVALID_OUTPUT', 'Pathway suggestions contain unsupported capabilities or experience claims.', 502);
     combinations.add(key);
-    return { ...suggestion, id: `direction-${index + 1}`, provisional: true, libraryVersion: capabilityLibrary.version };
+    const reviewedDirection=library.directions?.find(rule=>rule.capabilityIds.length===suggestion.capabilityIds.length&&rule.capabilityIds.every(id=>suggestion.capabilityIds.includes(id)));
+    return { ...suggestion, id: `direction-${index + 1}`, provisional: true, libraryVersion: library.version,
+     capabilityLabels:library.capabilities.filter(item=>suggestion.capabilityIds.includes(item.id)).map(({id,label})=>({id,label})),
+     sourceNote:library.provenance,...(reviewedDirection?{reviewedDirectionId:reviewedDirection.id}:{}) };
   });
 }
 export function mockPathwayOutput(input: PathwayProviderInput) {

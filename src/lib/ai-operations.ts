@@ -5,19 +5,21 @@ import { access, getState, type Claims, type Tx } from './store';
 import { catalogue } from './catalogue';
 import { assertRevision, compare, DomainError, generateSchema } from './domain';
 import { AI_LIMITS, signingSecret } from './ai-config';
-import { executionConfiguration, assertGroqDispatch, processingDisclosure } from './ai-execution';
+import { executionConfiguration, assertGroqDispatch, assertGroqWorkflow, processingDisclosure } from './ai-execution';
 import { createGroqProvider } from './groq-provider';
 import { providerRequest, PROVIDER_PROMPT_VERSION } from './ai-provider-request';
 import { fingerprint, signCandidate } from './candidate-origin';
 import { validateExtraction, validateRoadmapOutput } from './ai-output';
-import { mockProvider, ProviderFailure, type AIProvider, type ProviderInput } from './ai-provider';
+import { mockProvider, ProviderFailure, timedProviderResponse, providerAttemptTimeout, type AIProvider, type ProviderInput } from './ai-provider';
 import { parsePdf } from './pdf';
 import { prepareCvText } from './cv-text';
 import type { Purpose } from './types';
-import { capabilityLibrary, storedSuggestionsSchema, suggestPathwaysSchema, validatePathwaySuggestions } from './pathways';
+import { capabilityLibrary, reviewedPathwayVocabulary, storedSuggestionsSchema, suggestPathwaysSchema, validatePathwaySuggestions } from './pathways';
 import { selectedDirectionComparison, selectedDirectionPlanning } from './reviewed-direction';
 import { resourcePreviewRequestSchema, storedResourcePreviewSchema, storedResourcePreviewsSchema, validateResearchEnvelope, validateMockResourcePreview } from './resource-preview';
-import { resourceSelectionSchema } from './resource-discovery';
+import { resourceSelectionSchema, researchedSelectionSchema, validateDiscoveredPair } from './resource-discovery';
+import { inspectResourcePages, verifiedResourceChecks } from './resource-page-verifier';
+import { activeRequirementSnapshot } from './requirement-snapshots';
 import { reviewedResourceRequestSchema, reviewedResourcePreviewSchema, reviewedResourcePreviewsSchema } from './reviewed-resources';
 import { validateReviewedPlan } from './reviewed-roadmap';
 
@@ -98,10 +100,14 @@ async function begin(client:PrismaClient,claims:Claims,kind:Purpose|'pathway_sug
   }
   signingSecret();const config=await executionConfiguration(tx);
   if(reviewed&&kind==='roadmap_generation'){
-   if(config.mode!=='mock')throw new DomainError('REVIEWED_ROADMAP_LIVE_DISABLED','Live reviewed planning requires verified resource research and approved processing configuration.',503);
+   if(config.mode==='groq')assertGroqWorkflow(config);
    await selectedDirectionPlanning(tx,claims.id);
   }
-  if(planningOnly&&config.mode!=='mock')throw new DomainError(kind==='resource_research'?'RESOURCE_LIVE_DISABLED':'PATHWAY_LIVE_DISABLED','Live exploration/research needs approved content, processing disclosure and bounded native-tool usage. Use local mock mode for this synthetic slice.',503);
+  if(planningOnly&&config.mode==='groq'){
+   assertGroqWorkflow(config);
+   if(kind==='resource_research'&&!resource?.reviewed)throw new DomainError('RESOURCE_LIVE_DISABLED','Select a reviewed direction before live resource research.',503);
+   if(kind==='pathway_suggestions'&&!await activeRequirementSnapshot(tx))throw new DomainError('CONTENT_REVIEW_REQUIRED','Reviewed capabilities must be active before live direction suggestions.',409);
+  }
   const time=await now(tx);const deadline=new Date(Math.min(started+AI_LIMITS.totalMs,time.getTime()+AI_LIMITS.totalMs));
   if(config.mode==='groq')assertGroqDispatch(config,time);
   if(deadline.getTime()-time.getTime()<3000)throw new DomainError('DEADLINE','Processing deadline reached.',504);
@@ -166,12 +172,11 @@ async function propose<T>(client:PrismaClient,claims:Claims,op:AIOperation,provi
  let request=input;
  for(let attempt=0;attempt<attemptLimit;attempt++){
   provider.checkInput?.(request);
+  providerAttemptTimeout(request,op.deadline.getTime()-Date.now());
   await reserve(client,claims,op);
-  const controller=new AbortController();
-  let timer:ReturnType<typeof setTimeout>|undefined;
   try{
-   const timeout=Math.min(AI_LIMITS.providerMs,op.deadline.getTime()-Date.now()-3000);
-   const output=await Promise.race([provider.respond(request,controller.signal),new Promise<never>((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new ProviderFailure('PROVIDER_UNAVAILABLE'))},Math.max(1,timeout));})]);
+   const timeout=providerAttemptTimeout(request,op.deadline.getTime()-Date.now());
+   const output=await timedProviderResponse(provider,request,timeout);
    if(Buffer.byteLength(JSON.stringify(output)??'')>AI_LIMITS.outputBytes)throw new DomainError('INVALID_OUTPUT','Provider output exceeds the configured limit.',502);
    return validate(output);
   }catch(error){
@@ -180,7 +185,7 @@ async function propose<T>(client:PrismaClient,claims:Claims,op:AIOperation,provi
    if(attempt===attemptLimit-1||!retryable)throw safe;
    if(input.kind==='cv_extraction'&&(error instanceof ZodError||['INVALID_OUTPUT','INVALID_EVIDENCE'].includes(safe.code)))request={...input,correction:error instanceof ZodError?'INVALID_OUTPUT':safe.code};
    if(input.kind==='reviewed_roadmap'&&(error instanceof ZodError||['INVALID_PLAN','UNVERIFIED_INFEASIBLE'].includes(safe.code)))request={...input,correction:error instanceof ZodError?'INVALID_OUTPUT':safe.code};
-  }finally{clearTimeout(timer);controller.abort();}
+  }
  }
  throw new DomainError('ATTEMPT_LIMIT','Both attempts have been used.',502);
 }
@@ -193,7 +198,8 @@ async function selectProvider(client:PrismaClient,override?:AIProvider){
  const config=await client.$transaction(tx=>executionConfiguration(tx),transactionOptions);
  if(config.mode==='mock')return override??mockProvider;
  if(override){if(override.model!==config.pilot.model)throw new DomainError('AI_CONFIGURATION','Provider does not match approved model.',503);return override;}
- return createGroqProvider({apiKey:process.env.GROQ_API_KEY!,model:config.pilot.model,maxOutputTokens:config.pilot.maxOutputTokens,maxRequestBytes:config.pilot.maxRequestBytes});
+ return createGroqProvider({apiKey:process.env.GROQ_API_KEY!,model:config.pilot.model,maxOutputTokens:config.pilot.maxOutputTokens,maxRequestBytes:config.pilot.maxRequestBytes,
+  planningApprovalReference:config.pilot.workflow?.approvalReference,nativeResearch:config.pilot.workflow?{approvalReference:config.pilot.workflow.approvalReference,maxNativeToolCalls:config.pilot.workflow.maxReportedToolCalls}:undefined});
 }
 export async function generateRoadmap(client:PrismaClient,claims:Claims,input:unknown,provider?:AIProvider){
  const started=Date.now();const body=generateSchema.parse(input);
@@ -212,7 +218,7 @@ export async function generateRoadmap(client:PrismaClient,claims:Claims,input:un
    await fence(tx,claims,op);
    if(reviewed){const current=await selectedDirectionPlanning(tx,claims.id);if(!current||JSON.stringify(current)!==JSON.stringify(reviewed))throw new DomainError('STALE_INPUT','Reviewed planning inputs or resources changed during generation.',409);}
    await tx.roadmap.updateMany({where:{userId:claims.id,status:'active'},data:{status:'archived'}});
-   const planningSnapshot=reviewed?{kind:'reviewed-direction-v1',mode:'mock',directionLabel:reviewed.directionLabel,context:reviewed.context,resources:reviewed.resources}:{hoursPerWeek:snapshot.profile.hoursPerWeek,confirmedSkillIds:snapshot.skills.flatMap(s=>s.canonicalSkillId?[s.canonicalSkillId]:[])};
+   const planningSnapshot=reviewed?{kind:'reviewed-direction-v1',mode:op.configurationVersion==='mock-v1'?'mock':'groq',directionLabel:reviewed.directionLabel,context:reviewed.context,resources:reviewed.resources}:{hoursPerWeek:snapshot.profile.hoursPerWeek,confirmedSkillIds:snapshot.skills.flatMap(s=>s.canonicalSkillId?[s.canonicalSkillId]:[])};
    const roadmap=await tx.roadmap.create({data:{userId:claims.id,inputRevision:op.inputRevision,catalogueVersion:op.catalogueVersion,createdAt:await now(tx),deferredSkillIds:plan.deferredSkillIds,modelVersion:selected.model,promptVersion:reviewed?'reviewed-roadmap-v1':PROVIDER_PROMPT_VERSION,planningSnapshot,tasks:{create:plan.tasks.map((task,position)=>({...task,position}))}}});
    await finishBeforeDeadline(tx,op,{roadmapId:roadmap.id,code});
   },transactionOptions);
@@ -223,7 +229,9 @@ export async function suggestPathways(client:PrismaClient,claims:Claims,input:un
  const started=Date.now();const body=suggestPathwaysSchema.parse(input);
  const initial=await getState(client,claims);
  if(!initial.pathwayExploration)throw new DomainError('PREFERENCES_REQUIRED','Save your interests and work preferences before requesting suggestions.');
- const fingerprint=createHash('sha256').update(JSON.stringify({body,libraryVersion:capabilityLibrary.version})).digest('hex');
+ const active=initial.processing?.mode==='groq'?await client.$transaction(async tx=>{await access(tx,claims,true);return activeRequirementSnapshot(tx);},transactionOptions):null;
+ const vocabulary=active?reviewedPathwayVocabulary(active.library):capabilityLibrary;
+ const fingerprint=createHash('sha256').update(JSON.stringify({body,libraryVersion:vocabulary.version})).digest('hex');
  const result=await begin(client,claims,'pathway_suggestions',body.operationKey,fingerprint,started,{...body,expectedCatalogueVersion:catalogue.version,introductoryPlanAcknowledged:false},true);
  if('noGaps' in result)throw new DomainError('INVALID_OPERATION','Invalid suggestion operation.');
  const {op,replay}=result;
@@ -231,12 +239,18 @@ export async function suggestPathways(client:PrismaClient,claims:Claims,input:un
  try{
   const snapshot=await getState(client,claims);assertRevision(snapshot.profile.planningRevision,op.inputRevision);
   const preferences=snapshot.pathwayExploration!.preferences;
-  const confirmedSkillIds=snapshot.skills.flatMap(skill=>skill.canonicalSkillId?[skill.canonicalSkillId]:[]);
+  const live=op.configurationVersion!=='mock-v1';
+  const confirmedSkillIds=live?await client.$transaction(async tx=>{
+   await fence(tx,claims,op);const current=await activeRequirementSnapshot(tx);
+   if(!current||current.library.version!==vocabulary.version)throw new DomainError('STALE_REQUIREMENTS','Reviewed suggestion inputs changed.',409);
+   const rows=await tx.confirmedSkill.findMany({where:{userId:claims.id},include:{capabilityConfirmation:true}});
+   return [...new Set(rows.flatMap(row=>{const c=row.capabilityConfirmation;return c&&current.library.capabilities.some(item=>item.id===c.capabilityId&&item.meaningVersion===c.meaningVersion)?[c.capabilityId]:[];}))];
+  },transactionOptions):snapshot.skills.flatMap(skill=>skill.canonicalSkillId?[skill.canonicalSkillId]:[]);
   const selected=await selectProvider(client,provider);
-  const suggestions=await propose(client,claims,op,selected,{kind:'pathway_suggestions',preferences,confirmedSkillIds,hoursPerWeek:snapshot.profile.hoursPerWeek},output=>validatePathwaySuggestions(output,confirmedSkillIds));
+  const suggestions=await propose(client,claims,op,selected,{kind:'pathway_suggestions',preferences,confirmedSkillIds,hoursPerWeek:snapshot.profile.hoursPerWeek,...(live?{library:vocabulary}:{})},output=>validatePathwaySuggestions(output,confirmedSkillIds,vocabulary).map(item=>({...item,generationMode:live?'groq' as const:'mock' as const})));
   await client.$transaction(async tx=>{
    await fence(tx,claims,op);
-   await tx.pathwayExploration.update({where:{userId:claims.id},data:{suggestions,inputRevision:op.inputRevision,libraryVersion:capabilityLibrary.version,operationId:op.id}});
+   await tx.pathwayExploration.update({where:{userId:claims.id},data:{suggestions,inputRevision:op.inputRevision,libraryVersion:vocabulary.version,operationId:op.id}});
    await finishBeforeDeadline(tx,op,{code:'PATHWAYS_READY'});
   },transactionOptions);
   return {code:'PATHWAYS_READY',operation:await operationStatus(client,claims,op.id),state:await getState(client,claims)};
@@ -274,7 +288,7 @@ export async function researchResourcePreview(client:PrismaClient,claims:Claims,
  }catch(error){const safe=safeError(error);await finishFailure(client,claims,op,safe);throw safe;}
 }
 
-export async function researchReviewedResources(client:PrismaClient,claims:Claims,input:unknown,provider?:AIProvider){
+export async function researchReviewedResources(client:PrismaClient,claims:Claims,input:unknown,provider?:AIProvider,inspectPages=inspectResourcePages){
  const started=Date.now();const body=reviewedResourceRequestSchema.parse(input);
  const binding=createHash('sha256').update(JSON.stringify({scope:'reviewed-direction',...body})).digest('hex');
  const result=await begin(client,claims,'resource_research',body.operationKey,binding,started,{...body,expectedCatalogueVersion:catalogue.version,introductoryPlanAcknowledged:false},true,{topicId:body.topicId,reviewed:true});
@@ -287,11 +301,18 @@ export async function researchReviewedResources(client:PrismaClient,claims:Claim
   assertRevision(comparison.planningRevision,op.inputRevision);
   const topic=comparison.requirements.find(item=>item.id===body.topicId&&item.evidence==='not_established');
   if(!topic)throw new DomainError('STALE_INPUT','The selected topic is no longer a learning need.',409);
-  const context={pathwayId:comparison.directionId,pathwayTitle:comparison.directionLabel,topicId:topic.id,topicTitle:topic.label};
+  const live=op.configurationVersion!=='mock-v1';
+  const sourceContext=live?await client.$transaction(async tx=>{await fence(tx,claims,op);const current=await activeRequirementSnapshot(tx);const node=current?.library.capabilities.find(item=>item.id===topic.id);if(!current||!node)throw new DomainError('STALE_REQUIREMENTS','Reviewed topic changed.',409);return {officialDocumentationHosts:[...new Set(current.library.sources.filter(item=>node.sourceIds.includes(item.id)).map(item=>new URL(item.url).hostname))],officialDocumentationSources:current.library.sources.filter(item=>node.sourceIds.includes(item.id)).map(item=>item.url),topicTerms:[node.label,...node.aliases],...(node.scope?{learningScope:{includes:node.scope.includes,excludes:node.scope.excludes,startingKnowledge:node.scope.startingKnowledge}}:{})};},transactionOptions):{};
+  const context={pathwayId:comparison.directionId,pathwayTitle:comparison.directionLabel,topicId:topic.id,topicTitle:topic.label,...sourceContext};
   const selected=await selectProvider(client,provider);
   const envelope=await propose(client,claims,op,selected,{kind:'resource_research',phase:'search',context},validateResearchEnvelope,1);
-  const selection=await propose(client,claims,op,selected,{kind:'resource_research',phase:'select',context,candidates:envelope.candidates},output=>resourceSelectionSchema.parse(output),1);
-  const preview=reviewedResourcePreviewSchema.parse({...validateMockResourcePreview(context,envelope,selection),mode:'mock',model:selected.model,inputRevision:op.inputRevision,libraryVersion:comparison.libraryVersion,requirementSetId:comparison.requirementSetId,operationId:op.id});
+  await client.$transaction(tx=>fence(tx,claims,op),transactionOptions);
+  const pages=live?await inspectPages(context,envelope.candidates,AbortSignal.timeout(Math.max(1,op.deadline.getTime()-Date.now()-3000))):undefined;
+  const usableCandidates=pages?envelope.candidates.filter(candidate=>pages.some(page=>page.candidateId===candidate.id)):envelope.candidates;
+  const selection=await propose(client,claims,op,selected,{kind:'resource_research',phase:'select',context,candidates:usableCandidates,...(pages?{pages}:{})},output=>pages?researchedSelectionSchema.parse(output):resourceSelectionSchema.parse(output),1);
+  const pair=pages?validateDiscoveredPair(context,envelope.results,{documentationId:selection.documentationId,supportingId:selection.supportingId},verifiedResourceChecks(context,envelope.candidates,pages,selection),envelope.sources):validateMockResourcePreview(context,envelope,selection);
+  const code=live?'RESOURCES_READY':'MOCK_REVIEWED_RESOURCES_READY';
+  const preview=reviewedResourcePreviewSchema.parse({...pair,mode:live?'groq':'mock',model:selected.model,inputRevision:op.inputRevision,libraryVersion:comparison.libraryVersion,requirementSetId:comparison.requirementSetId,operationId:op.id});
   await client.$transaction(async tx=>{
    await fence(tx,claims,op);
    const current=await selectedDirectionComparison(tx,claims.id);
@@ -300,9 +321,9 @@ export async function researchReviewedResources(client:PrismaClient,claims:Claim
    const old=reviewedResourcePreviewsSchema.parse(row.resourcePreviews);
    const resourcePreviews=reviewedResourcePreviewsSchema.parse([...old.filter(item=>item.inputRevision===op.inputRevision&&item.topicId!==topic.id),preview]);
    await tx.reviewedDirection.update({where:{userId:claims.id},data:{resourcePreviews}});
-   await finishBeforeDeadline(tx,op,{code:'MOCK_REVIEWED_RESOURCES_READY'});
+   await finishBeforeDeadline(tx,op,{code});
   },transactionOptions);
-  return {code:'MOCK_REVIEWED_RESOURCES_READY',operation:await operationStatus(client,claims,op.id),state:await getState(client,claims)};
+  return {code,operation:await operationStatus(client,claims,op.id),state:await getState(client,claims)};
  }catch(error){const safe=safeError(error);await finishFailure(client,claims,op,safe);throw safe;}
 }
 

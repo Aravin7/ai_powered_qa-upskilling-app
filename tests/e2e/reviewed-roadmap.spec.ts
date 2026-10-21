@@ -15,7 +15,7 @@ test('RR-E2E: reviewed direction → mock resources → atomic plan → completi
  if(!/^qa_pathways_/.test(new URL(url).pathname.slice(1))||!['localhost','127.0.0.1'].includes(new URL(url).hostname))throw new Error('Use only isolated qa_pathways_* database.');
  const client=new PrismaClient({adapter:new PrismaPg({connectionString:url,max:3})});
  const email=`reviewed-browser-${crypto.randomUUID()}@example.invalid`;const original=await client.requirementActivation.findUnique({where:{id:'active'}});
- const evidence='docs/evidence/2026-10-18-reviewed-roadmap';
+ const evidence=process.env.E2E_EVIDENCE_DIR??'docs/evidence/2026-10-18-reviewed-roadmap';
  try{
   expect((await request.post('/api/pathways/reviewed/resources',{headers:{Origin:process.env.NEXTAUTH_URL!},data:{}})).status()).toBe(401);
   await client.catalogueRevision.upsert({where:{id:'active'},create:{id:'active',version:catalogue.version},update:{}});

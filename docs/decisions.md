@@ -1,5 +1,40 @@
 # Decision Log
 
+## Observed native browser navigation — 21 October 2026
+
+The authorized final diagnostic identified `browser.open` as the rejected native action type (six total actions, two type failures). Accept that observed navigation type alongside the requested `browser_search`; do not accept arbitrary strings or infer provenance from model-written links. Keep source binding and count checks. Safe diagnostic details are bounded to schema field names, error codes and value-type categories; known action names may be reported, unknown values are redacted. The remaining live reservation was consumed; fix validation is mocked, not live acceptance.
+
+## Six native browser actions per topic — 21 October 2026
+
+Aravin explicitly requested replacing the restrictive two-action allowance while retaining the five-attempt hourly quota. Use six as the default and maximum: observed research used four/five native actions, so six provides limited headroom without unbounded browsing. Keep smaller explicit configurations until deliberately updated; configuration hashes continue to bind consent. The live runner must follow its stored bound. Do not change attempt/funding counters or claim pre-dispatch enforcement or successful live validation from mocked tests.
+
+## Explicit native-search overflow — 21 October 2026
+
+Distinguish `RESOURCE_TOOL_LIMIT` from correctable JSON. Preserve the configured native execution bound and the separate API-attempt quota; fail before selection without automatic redispatch. Official Chat/browser documentation provides no hard native-count request parameter. Do not copy Responses output metadata into a Chat request or claim a prompt enforces orchestration. This makes the failure actionable; it does not resolve provider compliance or establish live success.
+
+## Authorized test ceiling and native search focus — 21 October 2026
+
+- Aravin explicitly authorized changing the isolated live-test ceiling to ten and testing. Preserve the previous five reservations; renew only this expired test window once with a guarded 5-to-10 configuration update. Do not alter application/production budgets or the per-user rolling-hour quota.
+- Live diagnostics observed five, then four native tool executions against the configured bound of two. Pass that bound into the search prompt and avoid redundant native page-opening before independent server retrieval and structured AI review. The instruction is soft; validation still rejects excess counts. Do not claim a pre-dispatch spending cap or raise the bound merely to pass the test.
+- Stopped after three additional failures at 8/10 aggregate use; two authorized attempts remain unused. Record failure preservation and mocked checks separately from live success. No paid fallback or quota bypass.
+
+## Offline diagnostics after the live resource failure
+
+- Keep the HTTP-200 validation failure unresolved until actual controlled evidence identifies its stage. Do not infer successful source support from shared SDK response types or relabel model-written links as native source records.
+- Remove cloned-body inspection from the live runner. Controlled native-validation stage/outcome/tool-count events come from the existing parsed response, with no extra body reader, raw content or untrusted field names. Observer failures are isolated from validation/retry/accounting behavior. No live allowance is reset or expanded by these diagnostics.
+
+## Resource page verification and fallback — 19 October 2026
+
+- Resource research remains LLM-led: native search provides source provenance, then structured selection judges relevance against reviewed topic scope and starting knowledge. The local verifier checks public HTTPS destinations, exact evidence, reviewed official publishers and complete topic terms or multiple distinctive words. These are bounded automatic safeguards, not semantic truth or professional review.
+- Preserve independently retrieved access/prerequisite conditions, including outside the main article, within a disclosed bounded excerpt. A public landing page does not prove free access to a whole course/video; saved access notes distinguish observed passages and uncertainty.
+- Handle page failures per candidate. Selection receives only inspected candidates; an inaccessible extra candidate does not discard a remaining documentation/support pair. No usable pair means controlled failure with previous resources/plan preserved. No additional model retry is introduced.
+- Native search internal orchestration remains provider-managed. A reported-tool-count limit is post-response validation, not a pre-dispatch spending cap. The adapter accepts only the local synthetic, verified zero-charge configuration; actual eligibility, retention/disclosure and exact content review remain external activation gates. No live call was made to establish them.
+
+## External learning scope and provider continuation — 19 October 2026
+
+- Removed the contradictory timed-exercise publication gate from R06. The approved external-learning scope in specs section 1 controls: exact-content professional review and honest effort assumptions remain required, while app-authored teaching packs and participant exercise pilots are outside this MVP. Earlier packet decisions below are historical and superseded on that point.
+- The Groq SDK's published chat response types expose native executed-tool browser/search results, including URL, title and optional content. Resource provenance must use those fields; model prose/links alone cannot establish a source. No live call is authorized by this implementation work. Native-tool usage/cost/privacy approval and exact-content review remain activation gates.
+
 ## v4 packet and exercise corrections — 18 October 2026
 
 - Applied the two user-provided reviews. Critical and Important are mandatory; prerequisites inherit the maximum retained dependent priority transitively. Added the compiler policy to requirement-set identity so old bindings are not silently reused after this semantic change. Optional-only work remains Nice and explicitly deferrable.
