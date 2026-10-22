@@ -132,8 +132,17 @@ describe('R05/R06/R12: immutable snapshot and mapping services, real isolated Po
   expect(results[0].status).toBe('fulfilled');expect(results[1].status).toBe('rejected');expect((await first.requirementSnapshot.findUniqueOrThrow({where:{version:library.version}})).contentDigest).toBe(requirementContentDigest(library));
  });
  it('SR-12: unreviewed content and reused meaning version with changed scope cannot register',async()=>{
-  await expect(registerRequirementSnapshot(first,requirementDraft,evidence)).rejects.toMatchObject({code:'CONTENT_REVIEW_REQUIRED'});
-  const changed=structuredClone(library);changed.version=`synthetic-registration-${crypto.randomUUID()}`;changed.capabilities[0].meaning='Changed scope without version';changed.review!.contentDigest=requirementContentDigest(changed);
+    // v5 is now professionally reviewed.
+// Explicitly remove approval in this negative test fixture.
+const unreviewed = structuredClone(requirementDraft);
+unreviewed.review = null;
+
+await expect(
+  registerRequirementSnapshot(first, unreviewed, evidence),
+).rejects.toMatchObject({
+  code: 'CONTENT_REVIEW_REQUIRED',
+});
+    const changed=structuredClone(library);changed.version=`synthetic-registration-${crypto.randomUUID()}`;changed.capabilities[0].meaning='Changed scope without version';changed.review!.contentDigest=requirementContentDigest(changed);
   await expect(registerRequirementSnapshot(first,changed,evidence)).rejects.toMatchObject({code:'MEANING_VERSION_CONFLICT'});expect(await first.requirementSnapshot.findUnique({where:{version:changed.version}})).toBeNull();
  });
  it('SR-13: two original skills mapped to one capability count once and preserve both labels',async()=>{
