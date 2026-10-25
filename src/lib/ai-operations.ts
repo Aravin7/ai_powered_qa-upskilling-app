@@ -199,7 +199,7 @@ async function selectProvider(client:PrismaClient,override?:AIProvider){
  if(config.mode==='mock')return override??mockProvider;
  if(override){if(override.model!==config.pilot.model)throw new DomainError('AI_CONFIGURATION','Provider does not match approved model.',503);return override;}
  return createGroqProvider({apiKey:process.env.GROQ_API_KEY!,model:config.pilot.model,maxOutputTokens:config.pilot.maxOutputTokens,maxRequestBytes:config.pilot.maxRequestBytes,
-  planningApprovalReference:config.pilot.workflow?.approvalReference,nativeResearch:config.pilot.workflow?{approvalReference:config.pilot.workflow.approvalReference,maxNativeToolCalls:config.pilot.workflow.maxReportedToolCalls}:undefined});
+  planningApprovalReference:config.pilot.workflow?.approvalReference,nativeResearch:config.pilot.workflow?{approvalReference:config.pilot.workflow.approvalReference,maxNativeToolCalls:config.pilot.workflow.maxReportedToolCalls}:undefined,onResearchDiagnostic:event=>console.info('[groq-research-diagnostic]',JSON.stringify(event))});
 }
 export async function generateRoadmap(client:PrismaClient,claims:Claims,input:unknown,provider?:AIProvider){
  const started=Date.now();const body=generateSchema.parse(input);
