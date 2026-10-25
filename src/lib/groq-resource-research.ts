@@ -24,12 +24,13 @@ export function groqResourceResearchRequest(context: unknown,maxNativeToolCalls=
 
 // Native metadata contract from Groq's published ChatCompletionMessage types.
 // Model-written source IDs, URLs and citation markers cannot substitute for it.
-const page=z.object({url:z.string().url().max(2048),title:z.string().min(1).max(240),content:z.string().max(100000).optional()}).passthrough();
+const page=z.object({url:z.string().url().max(2048),title:z.string().max(240),content:z.string().max(100000).optional()}).passthrough();
 // The request enables browser_search; executed metadata also reports browser.open
 // for page navigation (observed in the authorised synthetic run, 21 October 2026).
 // Keep an explicit allowlist rather than accepting arbitrary tool types.
+const searchPage=page.extend({url:page.shape.url.optional(),title:page.shape.title.optional()});
 const tool=z.object({type:z.enum(['browser_search','browser.open','browser.find']),index:z.number().int().nonnegative(),browser_results:z.array(page).max(20).optional(),
- search_results:z.object({results:z.array(page).max(20).optional()}).passthrough().nullable().optional(),
+ search_results:z.object({results:z.array(searchPage).max(20).optional()}).passthrough().nullable().optional(),
 }).passthrough();
 const output=z.object({results:z.array(z.object({url:z.string().url().max(2048),kind:searchResultsSchema.element.shape.kind}).strict()).min(2).max(4)}).strict();
 
@@ -58,9 +59,11 @@ export function parseGroqNativeResearch(message:unknown,maxNativeToolCalls:numbe
  const parsed=check('native_metadata',()=>z.object({content:z.string().min(1).max(100000),executed_tools:z.array(tool).min(1).max(maxNativeToolCalls)}).passthrough().parse(message));
  const pages=new Map<string,{page:z.infer<typeof page>;citation:{requestId:string;toolIndex:number;resultIndex:number;resultType:'browser'|'search'}}>();
  for(const item of parsed.executed_tools)for(const [resultType,records] of [['browser',item.browser_results??[]],['search',item.search_results?.results??[]]] as const)for(const [resultIndex,result] of records.entries()){
+  if(!result.url)continue;
   const previous=pages.get(result.url);
-  if(previous&&previous.page.title!==result.title)throw new DomainError('UNGROUNDED_RESOURCE','Conflicting native source metadata needs a fresh research request.',502);
-  if(!previous||!previous.page.content)pages.set(result.url,{page:result,citation:{requestId,toolIndex:item.index,resultIndex,resultType}});
+  // Native search and opened-page results may use different titles for the same URL.
+  // Preserve exact URL provenance and prefer a record containing page content.
+  if(!previous||!previous.page.content)pages.set(result.url,{page:{...result,url:result.url,title:result.title?.trim()||previous?.page.title||new URL(result.url).hostname},citation:{requestId,toolIndex:item.index,resultIndex,resultType}});
  }
  if(pages.size>20)throw new DomainError('INVALID_OUTPUT','Native search returned too many sources.',502);
  const proposed:unknown=check('research_json',()=>{try{return JSON.parse(parsed.content);}catch{throw new DomainError('INVALID_OUTPUT','Native research did not return the required resource object.',502);}});
