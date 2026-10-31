@@ -22,9 +22,27 @@ describe('T15 resource preview contracts - synthetic only, no network',()=>{
   expect(()=>validateResearchEnvelope({results:[{}],sources:[]})).toThrow();
   expect(()=>resourcePreviewRequestSchema.parse({operationKey:crypto.randomUUID(),suggestionId:'direction-1',topicId:'ci',expectedPlanningRevision:4,topicTitle:'forged',cvText:'private'})).toThrow();
  });
- it('RP-04: Groq native research stays disabled before network dispatch',()=>{
-  let calls=0;const provider=createGroqProvider({apiKey:'synthetic-only',model:GROQ_MODEL,fetchImpl:async()=>{calls++;throw new Error('Unexpected network call');}});
-  expect(()=>provider.checkInput!({kind:'resource_research',phase:'search',context})).toThrow(/approved native-tool/);
+
+it('RP-04: missing LLM-only approval blocks dispatch', () => {
+  let calls = 0;
+
+  const provider = createGroqProvider({
+    apiKey: 'synthetic-only',
+    model: GROQ_MODEL,
+    fetchImpl: async () => {
+      calls++;
+      throw new Error('Unexpected network call');
+    },
+  });
+
+  expect(() =>
+    provider.checkInput!({
+      kind: 'resource_research',
+      phase: 'search',
+      context,
+    })
+  ).toThrow(/LLM-only resource recommendations require an approved workflow/);
+
   expect(calls).toBe(0);
- });
+});
 });

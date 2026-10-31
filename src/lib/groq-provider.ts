@@ -1,5 +1,5 @@
 import { AI_LIMITS } from './ai-config';
-import { GROQ_MODEL, GROQ_NATIVE_TOOL_LIMIT } from './ai-execution';
+import { GROQ_MODEL } from './ai-execution';
 import { ProviderFailure, type AIProvider, type ProviderInput } from './ai-provider';
 import { providerRequest } from './ai-provider-request';
 import { DomainError } from './domain';
