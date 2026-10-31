@@ -197,3 +197,12 @@ describe('US15 / dynamic resource contracts - synthetic search and verification 
     expect(parsed.results.map(item=>item.url)).toEqual(results.map(item=>item.url));
   });
 });
+
+it('RS-27: no suitable native sources produces a controlled content gap', () => {
+  const message = {
+    content: JSON.stringify({ outcome: 'content_gap', results: [] }),
+    executed_tools: [{ type: 'browser_search', index: 0, search_results: { results: [] } }]
+  };
+  expect(() => parseGroqNativeResearch(message, 2, 'synthetic-content-gap'))
+    .toThrow(expect.objectContaining({ code: 'RESOURCE_CONTENT_GAP', status: 422 }));
+});

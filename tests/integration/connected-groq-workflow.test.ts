@@ -85,6 +85,24 @@ it('CW-02 / T03/T11: absent workflow approval rejects before any operation or re
  await expect(researchReviewedResources(first,claims,research(),undefined,inspector)).rejects.toMatchObject({code:'RESOURCE_LIVE_DISABLED'});
  expect(await first.aIOperation.count({where:{userId:claims.id}})).toBe(0);expect(fetch).not.toHaveBeenCalled();
 });
+
+it.each([false,true])('CW-08 / R06/R07/R11: no reviewed direction blocks legacy fallback (complete sample inventory: %s), without spending or losing progress',async completeSample=>{
+ await saveReviewedDirection(first,claims,{version:library.version,directionId:null,deferredCapabilityIds:[],expectedPlanningRevision:3});
+ let revision=4;
+ if(completeSample){
+  await putSkills(first,claims,{entries:catalogue.skills.map(skill=>({canonicalSkillId:skill.id,label:skill.label})),removals:[],expectedRevision:revision});
+  revision++;
+ }
+ const before=(await getState(first,claims)).roadmap;
+ await expect(generateRoadmap(first,claims,{...planRequest(),expectedPlanningRevision:revision})).rejects.toMatchObject({code:'DIRECTION_REQUIRED'});
+ expect(fetch).not.toHaveBeenCalled();
+ expect(await first.aIOperation.count({where:{userId:claims.id}})).toBe(0);
+ expect((await first.fundingBudget.findUniqueOrThrow({where:{id:budgetId}})).reserved).toBe(0);
+ expect((await getState(second,claims)).roadmap).toEqual(before);
+ const task=before!.tasks[0];
+ await patchTask(first,claims,task.id,{completed:false,expectedTaskRevision:task.revision});
+ expect((await getState(second,claims)).roadmap!.tasks[0].completed).toBe(false);
+});
 it.each(['missing-sources','bad-excerpt'] as const)('CW-03-%s / T09/T15: ungrounded research preserves the previously saved pair and active progress',async defect=>{
  interceptedProvider();await researchReviewedResources(first,claims,research(),undefined,inspector);const before=await getState(first,claims);
  const http=interceptedProvider(defect);await expect(researchReviewedResources(first,claims,research(),undefined,inspector)).rejects.toMatchObject({code:defect==='missing-sources'?'INVALID_OUTPUT':'RESOURCE_VERIFICATION_REQUIRED'});

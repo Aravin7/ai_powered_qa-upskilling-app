@@ -63,10 +63,11 @@ test('connected authenticated mock workflow: PDF review, plan, progress, fallbac
   await expect(page.getByRole('heading',{name:'Temporary evidence · review before confirming'})).toBeVisible({timeout:15000});
   expect(await client.confirmedSkill.count({where:{userId:user.id}})).toBe(0);
   await expect(page.getByRole('checkbox',{name:'Select extracted Test automation'})).not.toBeChecked();
-  await expect(page.getByRole('checkbox',{name:'Select extracted API testing'})).toBeChecked();
+  await expect(page.getByRole('checkbox',{name:'Select extracted API testing'})).not.toBeChecked();
   await expect(page.getByText('Listed in CV—experience not demonstrated.',{exact:false})).toBeVisible();
   await page.screenshot({path:evidenceDir+'/01-cv-evidence-review.png',fullPage:true});
-  await page.getByRole('checkbox',{name:'Select extracted Test automation'}).check();
+  await page.getByRole('checkbox',{name:'Select extracted API testing'}).check();
+await page.getByRole('checkbox',{name:'Select extracted Test design'}).check();
   await page.getByRole('button',{name:'Confirm skills',exact:true}).click();await expect(page.getByRole('status').filter({hasText:'Skills confirmed'})).toBeVisible();
   expect(await client.confirmedSkill.count({where:{userId:user.id,source:'cv'}})).toBe(3);
   await page.getByRole('button',{name:'Continue to roadmap'}).click();await page.getByRole('button',{name:'Generate mock roadmap'}).click();

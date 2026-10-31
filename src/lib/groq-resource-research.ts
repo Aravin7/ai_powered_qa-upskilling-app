@@ -13,7 +13,7 @@ export function groqResourceResearchRequest(context: unknown,maxNativeToolCalls=
   const prompt = resourceResearchPrompt(context);
   return {
     model: GROQ_MODEL,
-    messages: [{ role: 'system', content: prompt.system+` Use at most ${maxNativeToolCalls} native browser tool executions in total. Keep research focused on this single topic, combine searches/retrieval where supported and stop when a suitable pair is substantiated. The application independently retrieves candidate pages afterward. Do not continue browsing to collect extra alternatives. This instruction is not a technical tool-call cap; output exceeding the configured count will be rejected.`+' Return only {"results":[{"url":"exact native source URL","kind":"documentation|tutorial|course|video"}]}, with two to four candidates. Source URLs must occur in your native browser tool results. Native tool metadata supplies titles and provenance separately; do not add prose, invented citations or other fields.' }, { role: 'user', content: prompt.user }],
+    messages: [{ role: 'system', content: prompt.system+` Use at most ${maxNativeToolCalls} native browser tool executions in total. Keep research focused on this single topic, combine searches/retrieval where supported and stop when a suitable pair is substantiated. The application independently retrieves candidate pages afterward. Do not continue browsing to collect extra alternatives. This instruction is not a technical tool-call cap; output exceeding the configured count will be rejected.`+' Return only one of two JSON formats: {"results":[{"url":"exact native source URL","kind":"documentation|tutorial|course|video"}]} with two to four substantiated candidates; or {"outcome":"content_gap","results":[]} if no suitable documentation and supporting resource pair can be substantiated. Never invent URLs to avoid reporting a content gap. Source URLs must occur in your native browser tool results. Native tool metadata supplies titles and provenance separately; do not add prose, invented citations or other fields.' }, { role: 'user', content: prompt.user }],
     tools: [{ type: 'browser_search' }],
     tool_choice: 'required',
     reasoning_effort: 'low',
@@ -67,7 +67,24 @@ export function parseGroqNativeResearch(message:unknown,maxNativeToolCalls:numbe
  }
  if(pages.size>20)throw new DomainError('INVALID_OUTPUT','Native search returned too many sources.',502);
  const proposed:unknown=check('research_json',()=>{try{return JSON.parse(parsed.content);}catch{throw new DomainError('INVALID_OUTPUT','Native research did not return the required resource object.',502);}});
- const candidates=check('candidate_schema',()=>output.parse(proposed));
+ const candidates = check('candidate_schema', () => {
+  const contentGap = z.object({
+    outcome: z.literal('content_gap'),
+    results: z.array(z.unknown()).length(0),
+  }).strict();
+
+  const parsed = z.union([output, contentGap]).parse(proposed);
+
+  if ('outcome' in parsed) {
+    throw new DomainError(
+      'RESOURCE_CONTENT_GAP',
+      'No substantiated documentation/supporting pair is available.',
+      422
+    );
+  }
+
+  return parsed;
+});
  const results=check('source_binding',()=>candidates.results.map(item=>{
   const source=pages.get(item.url);
   if(!source)throw new DomainError('UNGROUNDED_RESOURCE','A proposed URL was not returned by the native browser tool.',502);
