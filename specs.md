@@ -1,5 +1,7 @@
 # Project Specification: Mid-Career AI Upskilling & Repositioning Platform
 
+**Reviewed roadmap output amendment:** The model returns outcome, reason, constraintCode, deferredSkillIds and tasks containing only activityId and week. The server reconstructs full tasks from the fenced reviewed context, enforces exact coverage, ordering, capacity and duration, then saves atomically. Infeasible responses and all existing quota, funding, retry and deadline controls remain unchanged. Legacy roadmap contracts and saved plan snapshots remain supported.
+
 **Resource workflow amendment, 3 November 2026:** For roadmap generation, use one or more capability-linked references from the active reviewed requirement snapshot. Label these as catalogue references, without claiming independent live verification or professional review of each resource. Dynamic discovery and page retrieval are not prerequisites for roadmap generation. Existing frozen resource snapshots remain readable. This amendment supersedes conflicting two-resource and mandatory research requirements below; consent, version binding, request quotas, funding, validation and atomic replacement remain in force.
 
 Version 1.2 · 17 October 2026 · Product owner: Aravin · Implementation target: Codex.

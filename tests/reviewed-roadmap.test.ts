@@ -27,7 +27,7 @@ describe('R06/R07/T07 reviewed proposal validation; synthetic, no provider/DB',(
   const context=reviewedPlanContext({...input,resources});
   const plan=mockReviewedPlan(context);
   expect(()=>validateReviewedPlan(context,plan)).not.toThrow();
-  plan.tasks[0].resourceIds=['invented'];
+  plan.tasks[0].activityId='invented';
   expect(()=>validateReviewedPlan(context,plan)).toThrow();
  });
  it('RR-01 accepts exact work, shared setup once, practice and four occupied weeks',()=>{
@@ -36,20 +36,26 @@ describe('R06/R07/T07 reviewed proposal validation; synthetic, no provider/DB',(
   expect(result.tasks.reduce((sum,item)=>sum+item.estimatedMinutes,0)).toBe(450);
   expect(new Set(result.tasks.map(item=>item.week)).size).toBe(4);
  });
- it.each(['resources','minutes-short','minutes-padded','activity','outcome','title','skill','duplicate','missing','no-practice'])('RR-02-%s rejects changed, missing or overlapping work',variation=>{
+ it.each(['invented','duplicate','missing','extra-field'])('RR-02-%s rejects invalid activity selections',variation=>{
   const {context,proposal}=setup();
-  const item=proposal.tasks[1];
-  if(variation==='resources')item.resourceIds=['invented'];
-  if(variation==='minutes-short')item.estimatedMinutes--;
-  if(variation==='minutes-padded')item.estimatedMinutes++;
-  if(variation==='activity')item.activity='Unrelated work';
-  if(variation==='outcome')item.completionCriterion='Unrelated result';
-  if(variation==='title')item.title='Unrelated topic';
-  if(variation==='skill')item.skillIds=['invented'];
-  if(variation==='duplicate')proposal.tasks=[...proposal.tasks,{...item,week:4}];
+  if(variation==='invented')proposal.tasks[0].activityId='invented';
+  if(variation==='duplicate')proposal.tasks[1].activityId=proposal.tasks[0].activityId;
   if(variation==='missing')proposal.tasks.pop();
-  if(variation==='no-practice')proposal.tasks=proposal.tasks.filter(item=>item.kind!=='practical');
+  if(variation==='extra-field')Object.assign(proposal.tasks[0],{title:'forged'});
   expect(()=>validateReviewedPlan(context,proposal)).toThrow();
+ });
+ it.each([
+  ['title','forged title'],['activity','forged activity'],['completionCriterion','forged criterion'],
+  ['skillIds',['forged-skill']],['resourceIds',['forged-resource']],['estimatedMinutes',1],
+  ['kind','learning'],['url','https://example.invalid/forged'],
+ ])('rejects injected %s in a provider schedule entry',(field,value)=>{
+  const {context,proposal}=setup();Object.assign(proposal.tasks[0],{[field]:value});
+  expect(()=>validateReviewedPlan(context,proposal)).toThrow();
+ });
+ it('rejects a reviewed context with no practical work',()=>{
+  const {context,proposal}=setup();
+  for(const activity of context.activities)activity.task.kind='learning';
+  expect(()=>validateReviewedPlan(context,proposal)).toThrow(/practical work/);
  });
  it('RR-03 rejects prerequisite inversion before scheduling and confirmed prerequisites need no learning tasks',()=>{
   const {context,proposal,input}=setup();
@@ -81,7 +87,7 @@ describe('R06/R07/T07 reviewed proposal validation; synthetic, no provider/DB',(
   input.inventory=[];input.resources=[];expect(()=>reviewedPlanContext(input)).toThrow(/Catalogue references/);
  });
  it('RR-06 retains 24 valid tasks across all twelve weeks',()=>{
-  const {context,proposal}=setup(12,false);proposal.tasks=context.activities.map((item,index)=>({...item.task,week:Math.floor(index/2)+1}));
+  const {context,proposal}=setup(12,false);proposal.tasks=context.activities.map((item,index)=>({activityId:item.id,week:Math.floor(index/2)+1}));
   const result=validateReviewedPlan(context,proposal);expect(result.tasks).toHaveLength(24);expect(result.tasks.at(-1)!.week).toBe(12);
  });
  it('RR-07 distinguishes demonstrable capacity, duration and unverified infeasibility',()=>{

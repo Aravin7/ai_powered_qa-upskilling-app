@@ -1,5 +1,13 @@
 # Build status — 22 October 2026 · IT6070
 
+## Reviewed roadmap v2 final local verification — 3 November 2026
+
+Typecheck passed; 282/282 unit tests passed including explicit injected task-field and no-practical-work checks. Production build passed. Full integration passed 135/135 using the dedicated disposable PostgreSQL cluster and intercepted provider HTTP; a separate prior-v1 saved-snapshot/completed-task read check also passed (1/1). Failed generation and atomic rollback checks preserve prior progress. The earlier 274-to-273 unit change reflected six replaced v1 output-mutation cases, four added Groq HTTP diagnostic cases and one v5 compact-contract case; nine explicit v2 injection/practical checks were subsequently added. PostgreSQL client emitted query-concurrency deprecation warnings. No live Groq request was made; live response compatibility remains unverified.
+
+## Compact reviewed roadmap output — 3 November 2026
+
+The reviewed roadmap provider now returns activity IDs and week assignments. The server reconstructs tasks from its reviewed context and validates complete coverage, dependency order, consecutive weeks and capacity before atomic activation. Live 200 then 400 json_validate_failed prompted this change; it does not prove why the provider rejected the earlier response. Typecheck passed; 273 mocked unit tests passed, including an intercepted real-v5 ten-activity case; 45 isolated integration tests passed across reviewed planning, Groq controls and connected workflows. No live provider request was made.
+
 ## Groq roadmap HTTP diagnostics — 3 November 2026
 
 Added server warning with operation type and upstream HTTP status only for unsuccessful Groq HTTP responses. No request contents, provider body or credentials are logged. Intercepted 400/401/429/500 adapter cases and isolated PostgreSQL failure-preservation/quota checks passed; no live provider requests were made. The earlier live PROVIDER_UNAVAILABLE result did not retain its upstream status, so its cause remains unknown. Groq strict-schema documentation supports GPT-OSS 20B; the prior 502 does not itself identify a schema failure.

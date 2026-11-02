@@ -93,6 +93,14 @@ const roadmapSchema = {
     }
 };
 
+const reviewedScheduleSchema = {
+ type:'object',additionalProperties:false,required:['outcome','reason','constraintCode','deferredSkillIds','tasks'],properties:{
+  outcome:{type:'string',enum:['plan','infeasible']},reason:{type:['string','null']},
+  constraintCode:{type:['string','null'],enum:['duration_policy','capacity','prerequisite_or_content','undetermined',null]},
+  deferredSkillIds:strings,tasks:{type:'array',items:{type:'object',additionalProperties:false,required:['activityId','week'],properties:{activityId:{type:'string'},week:{type:'integer'}}}}
+ }
+};
+
 async function boundedBody(response: Response) {
     if (!response.body) throw new ProviderFailure('PROVIDER_INCOMPLETE');
     const reader = response.body.getReader(); const chunks: Uint8Array[] = []; let length = 0;
@@ -135,6 +143,7 @@ export function createGroqProvider({
         const schema =
             input.kind === 'cv_extraction' ? extractionSchema :
                 input.kind === 'pathway_suggestions' ? pathwaySchema :
+                    input.kind === 'reviewed_roadmap' ? reviewedScheduleSchema :
                     input.kind === 'resource_research'
                         ? input.phase === 'search'
                             ? llmResourceSchema

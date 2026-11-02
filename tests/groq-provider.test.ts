@@ -233,7 +233,9 @@ describe('Groq adapter — LLM-only resource mode with intercepted HTTP', () => 
     expect(request.response_format.json_schema.strict).toBe(true);
     expect(request.tools).toBeUndefined();
     expect(prompt.activities).toHaveLength(planning.activities.length);
-    expect(prompt.activities[0].resourceIds).toEqual(planning.activities[0].task.resourceIds);
+    expect(prompt.activities[0].estimatedMinutes).toBe(planning.activities[0].task.estimatedMinutes);
+    expect(prompt.activities[0].resourceIds).toBeUndefined();
+    expect(request.response_format.json_schema.schema.properties.tasks.items.required).toEqual(['activityId','week']);
     expect(request.messages[0].content).toMatch(/exactly once/);
     expect(request.messages[1].content).not.toMatch(/email|cvText|https?:\/\//);
     expect(http).toHaveBeenCalledTimes(1);

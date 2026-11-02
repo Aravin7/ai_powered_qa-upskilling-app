@@ -161,6 +161,19 @@ it('GR-17 / R07/R11: rejected roadmap request uses one reservation and preserves
  expect(http).toHaveBeenCalledTimes(1);expect((await first.fundingBudget.findUniqueOrThrow({where:{id:budgetId}})).reserved).toBe(2);
  const preserved=(await getState(first,claims)).roadmap!;expect(preserved.id).toBe(original.state.roadmap!.id);expect(preserved.tasks[0].completed).toBe(true);
 });
+it.each([400,403,500])('GR-18 / R11: HTTP %i uses only the permitted reserved attempts',async status=>{
+ const http=vi.fn(async()=>new Response('synthetic private error',{status}));vi.stubGlobal('fetch',http);
+ const log=vi.spyOn(console,'warn').mockImplementation(()=>{});
+ try{
+  await expect(generateRoadmap(first,claims,request())).rejects.toMatchObject({code:'PROVIDER_UNAVAILABLE',providerStatus:status});
+  const expected=status===500?2:1;
+  expect(http).toHaveBeenCalledTimes(expected);
+  expect((await first.fundingBudget.findUniqueOrThrow({where:{id:budgetId}})).reserved).toBe(expected);
+  expect(await first.aIAttempt.count({where:{operation:{userId:claims.id}}})).toBe(expected);
+  expect(log).toHaveBeenCalledTimes(expected);
+  for(const call of log.mock.calls)expect(call).toEqual(['[groq-http-error]',{operation:'reviewed_roadmap',status}]);
+ }finally{log.mockRestore();}
+});
 it('GR-15 / R03/R09/R11: changed configuration during processing prevents stale activation without refund',async()=>{
  const http=vi.fn(async()=>{
   const changed={...pilot,maxOutputTokens:2048};

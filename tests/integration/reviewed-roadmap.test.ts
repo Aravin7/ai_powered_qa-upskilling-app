@@ -55,6 +55,17 @@ async function seedResources(){
 }
 function provider(respond:AIProvider['respond']):AIProvider{return {model:'synthetic-controlled-provider',respond};}
 
+it('IT-RR12 reads a previously saved v1 reviewed snapshot and its completed tasks',async()=>{
+ await seedResources();
+ const selected=await first.reviewedDirection.findUniqueOrThrow({where:{userId:claims.id}});
+ const snapshot={kind:'reviewed-direction-v1',mode:'mock',directionLabel:selected.label,context:{libraryVersion:library.version,requirementSetId:selected.requirementSetId},resources:selected.resourcePreviews};
+ await first.roadmap.update({where:{id:planId},data:{promptVersion:'reviewed-roadmap-v1',planningSnapshot:snapshot}});
+ const before=await oldPlan();const state=await getState(second,claims);
+ expect(state.roadmap?.id).toBe(planId);expect(state.roadmap?.reviewed?.resources).toEqual(selected.resourcePreviews);
+ expect(state.roadmap?.tasks.every(task=>task.completed)).toBe(true);
+ expect(await oldPlan()).toEqual(before);
+});
+
 it('IT-RR01 R07/R08/R15: catalogue resources replace a plan and preserve archived progress',async()=>{
  const earlier=await first.roadmap.create({data:{userId:claims.id,status:'archived',inputRevision:1,catalogueVersion:catalogue.version,tasks:{create:{position:0,week:1,title:'Older completed activity',activity:'Synthetic work',completionCriterion:'Done',kind:'practical',skillIds:[],resourceIds:[],estimatedMinutes:30,completed:true}}},include:{tasks:true}});
  const calls:ProviderInput[]=[];const spy=provider(async(input,signal)=>{calls.push(input);return mockProvider.respond(input,signal);});
