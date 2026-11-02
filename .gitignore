@@ -16,3 +16,4 @@ uploads/
 .test-tools/
 private/
 tests/groq-source-titles.test.ts
+qa-llm-workflow-approval-20261102.json
