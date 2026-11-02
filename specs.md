@@ -1,5 +1,7 @@
 # Project Specification: Mid-Career AI Upskilling & Repositioning Platform
 
+**Resource workflow amendment, 3 November 2026:** For roadmap generation, use one or more capability-linked references from the active reviewed requirement snapshot. Label these as catalogue references, without claiming independent live verification or professional review of each resource. Dynamic discovery and page retrieval are not prerequisites for roadmap generation. Existing frozen resource snapshots remain readable. This amendment supersedes conflicting two-resource and mandatory research requirements below; consent, version binding, request quotas, funding, validation and atomic replacement remain in force.
+
 Version 1.2 · 17 October 2026 · Product owner: Aravin · Implementation target: Codex.
 
 This is the authoritative target implementation specification. Implementation coverage and observed checks are tracked separately in `docs/BUILD-STATUS.md`; requirements below are not claims of completion. It carries the approved MVP/G1–G10 baseline and the authorized A1–A6/B1–B11/C1–C5 corrections from the revised handoff. The TypeScript stack below is the recommended implementation default adopted for this starter pack; exact package versions and provider plans are verified and pinned during repository initialization. The specification contains no fabricated professional, price, permission, integration result or completed test. Production admission remains gated by the evidence in section 5.

@@ -3,7 +3,7 @@ import { DomainError, planSchema } from './domain';
 import { roadmapOutputSchema } from './ai-output';
 import { compareDirectionRequirements, directionWorkload, type RequirementLibrary } from './requirements';
 
-export type ReviewedResourcePair={topicId:string;documentationId:string;supportingId:string};
+export type ReviewedResourcePair={topicId:string;documentationId:string;supportingId?:string;additionalIds?:string[]};
 type Plan=z.infer<typeof planSchema>;
 type Task=Omit<Plan['tasks'][number],'week'>;
 export type ReviewedActivity={id:string;dependencies:string[];task:Task};
@@ -23,14 +23,15 @@ export function reviewedPlanContext(input:{library:RequirementLibrary;selection:
  const workload=directionWorkload(library,selection,comparison.strengthIds,now);
  const pairs=new Map<string,ReviewedResourcePair>();
  for(const pair of resources){
-  if(pairs.has(pair.topicId)||!gaps.some(item=>item.id===pair.topicId)||!pair.documentationId||!pair.supportingId||pair.documentationId===pair.supportingId)
-   throw new DomainError('RESOURCE_VERIFICATION_REQUIRED','Each learning topic needs a distinct documentation and supporting resource pair.',409);
+  const ids=[pair.documentationId,...(pair.supportingId?[pair.supportingId]:[]),...(pair.additionalIds??[])];
+  if(pairs.has(pair.topicId)||!gaps.some(item=>item.id===pair.topicId)||ids.some(id=>!id)||new Set(ids).size!==ids.length||ids.length>10)
+   throw new DomainError('RESOURCE_VERIFICATION_REQUIRED','Each learning topic needs distinct catalogue references.',409);
   pairs.set(pair.topicId,pair);
  }
  const activities:ReviewedActivity[]=[];const setups=new Set<string>();
  for(const gap of gaps){
-  const pair=pairs.get(gap.id);if(!pair)throw new DomainError('RESOURCE_VERIFICATION_REQUIRED','Research resources for every retained learning topic before generating a plan.',409);
-  const resourceIds=[pair.documentationId,pair.supportingId];const effort=gap.effort!;
+  const pair=pairs.get(gap.id);if(!pair)throw new DomainError('RESOURCE_VERIFICATION_REQUIRED','Catalogue references are missing for a retained learning topic.',409);
+  const resourceIds=[pair.documentationId,...(pair.supportingId?[pair.supportingId]:[]),...(pair.additionalIds??[])];const effort=gap.effort!;
   const prerequisites=gap.prerequisites.filter(id=>!comparison.strengthIds.includes(id)).map(id=>`${id}:practice`);
   const setup=effort.sharedSetup;
   if(setup&&!setups.has(setup.id)){
@@ -38,7 +39,7 @@ export function reviewedPlanContext(input:{library:RequirementLibrary;selection:
    setups.add(setup.id);
   }
   const dependencies=[...prerequisites,...(setup?[`setup:${setup.id}`]:[])];
-  if(effort.readingMinutes>0)activities.push({id:`${gap.id}:read`,dependencies,task:{kind:'learning',title:`Study ${gap.label}`,activity:`Read the documentation and supporting material for ${gap.label}.`,completionCriterion:`Explain the included scope and starting knowledge for ${gap.label}.`,skillIds:[gap.id],resourceIds,estimatedMinutes:effort.readingMinutes}});
+  if(effort.readingMinutes>0)activities.push({id:`${gap.id}:read`,dependencies,task:{kind:'learning',title:`Study ${gap.label}`,activity:`Review the catalogue references for ${gap.label}.`,completionCriterion:`Explain the included scope and starting knowledge for ${gap.label}.`,skillIds:[gap.id],resourceIds,estimatedMinutes:effort.readingMinutes}});
   activities.push({id:`${gap.id}:practice`,dependencies:[...dependencies,...(effort.readingMinutes>0?[`${gap.id}:read`]:[])],task:{kind:'practical',title:`Practise ${gap.label}`,activity:gap.activity,completionCriterion:gap.outcome,skillIds:[gap.id],resourceIds:effort.readingMinutes>0?[]:resourceIds,estimatedMinutes:effort.practiceMinutes+effort.reviewMinutes+effort.troubleshootingMinutes}});
  }
  // Validate content against the same bounded contract as provider proposals.

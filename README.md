@@ -1,5 +1,9 @@
 # QA Pathway — Week 3 connected mock workflow
 
+## Current catalogue-backed roadmap
+
+The roadmap uses references linked to each capability in the active reviewed catalogue. These are catalogue references; they are not independently verified for the generated plan. Resource research is no longer a prerequisite. Older roadmap snapshots remain supported. Local database integration verification is pending.
+
 Native browser research now defaults to a maximum of **six reported browser actions per topic**. Existing stored workflow configurations explicitly set to two must be updated to `maxReportedToolCalls:6` through `npm run ai:configure-groq -- --workflow-config <approved-local-json>`; preserve the other approval/notice fields. This changes configuration/consent binding without resetting funding counters or expiry. The user's five API attempts per rolling hour remain unchanged. Live diagnosis identified a parser mismatch for browser.open within the six-action bound. The compatibility fix passed mocked checks; a successful live resource pair remains unverified.
 
 **Latest live check - 21 October 2026:** the final authorised resource-only diagnostic returned **PROVIDER_TIMEOUT**, confirming the application attempt timer expired before a usable response in this run. Isolated usage is **15/15**; previous plans/progress were preserved. No resource pair or new roadmap was saved. Earlier generic failures cannot be retrospectively classified. See docs/BUILD-STATUS.md.

@@ -1,16 +1,16 @@
 import { afterAll,afterEach,beforeEach,expect,it,vi } from 'vitest';
 import { PrismaClient } from '../../src/generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { createHash } from 'node:crypto';
 import { catalogue } from '../../src/lib/catalogue';
 import { POLICY_VERSION } from '../../src/lib/domain';
 import { admitGoogle,getState,putProfile,putSkills,putConsent,patchTask,type Claims } from '../../src/lib/store';
 import { extractSkills,generateRoadmap } from '../../src/lib/ai-operations';
 import { configurationVersion } from '../../src/lib/ai-execution';
-import { syntheticWorkflowConfiguration } from '../fixtures/groq-configuration';
-import { createHash } from 'node:crypto';
+import { syntheticLLMWorkflowConfiguration } from '../fixtures/groq-configuration';
 import { syntheticReviewedLibrary } from '../fixtures/reviewed-planning';
 import { registerRequirementSnapshot, activateRequirementSnapshot } from '../../src/lib/requirement-snapshots';
-import { saveReviewedDirection, getReviewedGaps, selectedDirectionPlanning } from '../../src/lib/reviewed-direction';
+import { saveReviewedDirection, selectedDirectionPlanning } from '../../src/lib/reviewed-direction';
 import { mockReviewedPlan, type ReviewedPlanContext } from '../../src/lib/reviewed-roadmap';
 import { syntheticPdf } from '../synthetic-pdf';
 const url=process.env.TEST_DATABASE_URL;
@@ -19,7 +19,7 @@ const first=new PrismaClient({adapter:new PrismaPg({connectionString:url,max:4})
 const second=new PrismaClient({adapter:new PrismaPg({connectionString:url,max:4})});
 let claims:Claims;let budgetId:string;let policyVersion:string;
 const emails:string[]=[];
-let pilot=syntheticWorkflowConfiguration();
+let pilot=syntheticLLMWorkflowConfiguration();
 const request=()=>({operationKey:crypto.randomUUID(),expectedPlanningRevision:3,expectedCatalogueVersion:catalogue.version,introductoryPlanAcknowledged:false});
 let library=syntheticReviewedLibrary(2);
 let context:ReviewedPlanContext;
@@ -33,24 +33,12 @@ async function learner(){
  await putSkills(first,c,{entries:catalogue.skills.slice(0,3).map(skill=>({canonicalSkillId:skill.id,label:skill.label})),removals:[],expectedRevision:1});
  for(const purpose of ['cv_extraction','roadmap_generation'])await putConsent(first,c,{purpose,granted:true,policyVersion});
  await saveReviewedDirection(first,c,{version:library.version,directionId:'qa',deferredCapabilityIds:[],expectedPlanningRevision:2});
- const comparison=(await getReviewedGaps(first,c))!;
- // Persist synthetic resource preconditions only; no real source/page checks.
- const resourcePreviews=library.capabilities.map(topic=>({
-  pathwayId:'qa',pathwayTitle:'Synthetic QA direction',topicId:topic.id,topicTitle:topic.label,
-  professionalReview:null,mode:'groq',model:pilot.model,inputRevision:3,libraryVersion:library.version,requirementSetId:comparison.requirementSetId,operationId:crypto.randomUUID(),
-  resources:['documentation','tutorial'].map((kind,index)=>{
-   const url=`https://${index?'lessons':'docs'}.example.org/topics/${topic.id}`;
-   const hash=createHash('sha256').update(url).digest('hex');
-   return {id:`resource-${hash}`,sourceId:`groq-${hash}`,url,kind,title:'Synthetic resource fixture',publisher:'Synthetic publisher',accessNote:'Synthetic page evidence only',checkedAt:new Date().toISOString(),reviewStatus:'automatically_checked',citation:{requestId:'synthetic-fixture',toolIndex:0,resultIndex:index,resultType:'browser'}};
-  }),
- }));
- await first.reviewedDirection.update({where:{userId:c.id},data:{resourcePreviews}});
  context=(await first.$transaction(tx=>selectedDirectionPlanning(tx,c.id)))!.context;
  return c;
 }
 beforeEach(async()=>{
  vi.stubEnv('AI_MODE','groq');vi.stubEnv('GROQ_FREE_PLAN_CONFIRMED','true');vi.stubEnv('AI_SIGNING_SECRET','synthetic-groq-control-signing-secret');vi.stubEnv('GROQ_API_KEY','synthetic-key-not-a-real-credential');
- budgetId=`groq-${crypto.randomUUID()}`;vi.stubEnv('AI_BUDGET_ID',budgetId);pilot=syntheticWorkflowConfiguration();
+ budgetId=`groq-${crypto.randomUUID()}`;vi.stubEnv('AI_BUDGET_ID',budgetId);pilot=syntheticLLMWorkflowConfiguration();
  const version=configurationVersion(pilot);policyVersion=`groq-disclosure-v1-${version}`;
  await first.fundingBudget.create({data:{id:budgetId,mode:'groq',currency:'REQUESTS',pricingVersion:version,ceiling:pilot.ceilingRequests,expiresAt:new Date(pilot.expiresAt),configuration:pilot}});
  await first.catalogueRevision.upsert({where:{id:'active'},update:{},create:{id:'active',version:catalogue.version,revision:1}});
@@ -127,7 +115,7 @@ it('GR-08 / R11: two instances/users race for one remaining request; only one di
  expect(results.filter(result=>result.status==='fulfilled')).toHaveLength(1);expect(http).toHaveBeenCalledTimes(1);expect((await first.fundingBudget.findUniqueOrThrow({where:{id:budgetId}})).reserved).toBe(pilot.ceilingRequests);
 });
 it('GR-09 / R03/R11: changed notice invalidates existing consent before any dispatch',async()=>{
- const changed={...pilot,privacyNotice:pilot.privacyNotice+' Changed provider terms.'};const version=configurationVersion(changed);
+ const notice=pilot.privacyNotice+' Changed provider terms.';const changed={...pilot,privacyNotice:notice,llmWorkflow:{...pilot.llmWorkflow!,approvedNoticeSha256:createHash('sha256').update(notice).digest('hex')}};const version=configurationVersion(changed);
  await second.fundingBudget.update({where:{id:budgetId},data:{configuration:changed,pricingVersion:version}});
  expect((await getState(first,claims)).consents.roadmap_generation).toBe(false);
  await expect(generateRoadmap(first,claims,request())).rejects.toMatchObject({code:'CONSENT_REQUIRED'});expect(fetch).not.toHaveBeenCalled();
@@ -162,6 +150,14 @@ it('GR-14 / R07/R11: provider rate limit stops after one reservation and preserv
  await patchTask(first,claims,original.state.roadmap!.tasks[0].id,{completed:true,expectedTaskRevision:0});
  const http=vi.fn(async()=>new Response('private error',{status:429}));vi.stubGlobal('fetch',http);
  await expect(generateRoadmap(second,claims,request())).rejects.toMatchObject({code:'PROVIDER_RATE_LIMIT'});
+ expect(http).toHaveBeenCalledTimes(1);expect((await first.fundingBudget.findUniqueOrThrow({where:{id:budgetId}})).reserved).toBe(2);
+ const preserved=(await getState(first,claims)).roadmap!;expect(preserved.id).toBe(original.state.roadmap!.id);expect(preserved.tasks[0].completed).toBe(true);
+});
+it('GR-17 / R07/R11: rejected roadmap request uses one reservation and preserves completed progress',async()=>{
+ vi.stubGlobal('fetch',vi.fn(async()=>response(proposal())));const original=await generateRoadmap(first,claims,request());
+ await patchTask(first,claims,original.state.roadmap!.tasks[0].id,{completed:true,expectedTaskRevision:0});
+ const http=vi.fn(async()=>new Response('synthetic private response',{status:400}));vi.stubGlobal('fetch',http);
+ await expect(generateRoadmap(second,claims,request())).rejects.toMatchObject({code:'PROVIDER_UNAVAILABLE',providerStatus:400});
  expect(http).toHaveBeenCalledTimes(1);expect((await first.fundingBudget.findUniqueOrThrow({where:{id:budgetId}})).reserved).toBe(2);
  const preserved=(await getState(first,claims)).roadmap!;expect(preserved.id).toBe(original.state.roadmap!.id);expect(preserved.tasks[0].completed).toBe(true);
 });

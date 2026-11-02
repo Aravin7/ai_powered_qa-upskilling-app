@@ -68,7 +68,7 @@ export function currentReviewedResources(
 
       return resource.id === `resource-${digest}` && (browserSource || llmSource);
     });
-    if (doc.kind !== 'documentation' || support.kind === 'documentation' || doc.id === support.id || !valid) {
+    if (!doc || !support || doc.kind !== 'documentation' || support.kind === 'documentation' || doc.id === support.id || !valid) {
       throw new DomainError('RESOURCE_VERIFICATION_REQUIRED', 'Resource snapshot does not match the configured processing mode and source provenance.', 409);
     }
   }

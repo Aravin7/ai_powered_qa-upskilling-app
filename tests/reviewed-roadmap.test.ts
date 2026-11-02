@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { reviewedPlanContext, validateReviewedPlan, mockReviewedPlan } from '../src/lib/reviewed-roadmap';
 import { requirementContentDigest } from '../src/lib/requirements';
 import { syntheticReviewedLibrary } from './fixtures/reviewed-planning';
+import { reviewedPlanViewSchema } from '../src/lib/reviewed-resources';
 
 function setup(count=4,shared=true){
  const library=syntheticReviewedLibrary(count,shared);
@@ -11,6 +12,24 @@ function setup(count=4,shared=true){
  return {input,context,proposal};
 }
 describe('R06/R07/T07 reviewed proposal validation; synthetic, no provider/DB',()=>{
+ it('retains prior two-resource plan snapshots and supports six-hour schedules',()=>{
+  const {input}=setup();
+  const context=reviewedPlanContext({...input,hoursPerWeek:6});
+  expect(context.hoursPerWeek).toBe(6);
+  expect(()=>validateReviewedPlan(context,mockReviewedPlan(context))).not.toThrow();
+  const resource=(id:string,kind:'documentation'|'tutorial')=>({id,sourceId:id,title:id,url:`https://example.org/${id}`,publisher:'Synthetic',kind,accessNote:'Synthetic',checkedAt:'2026-10-19T00:00:00.000Z',reviewStatus:'synthetic_only'});
+  const old={kind:'reviewed-direction-v1',mode:'mock',directionLabel:'Synthetic',context:{libraryVersion:'v1',requirementSetId:'set'},resources:[{pathwayId:'qa',pathwayTitle:'Synthetic',topicId:'qa-topic-1',topicTitle:'Synthetic topic',requirementSetId:'set',resources:[resource('doc','documentation'),resource('lesson','tutorial')],professionalReview:null,mode:'mock',model:'mock',inputRevision:3,libraryVersion:'v1',operationId:'00000000-0000-4000-8000-000000000000'}]};
+  expect(reviewedPlanViewSchema.parse(old).resources[0].resources).toHaveLength(2);
+ });
+ it('accepts one catalogue reference per learning topic and rejects invented substitutions',()=>{
+  const {input}=setup();
+  const resources=input.resources.map(({topicId,documentationId})=>({topicId,documentationId}));
+  const context=reviewedPlanContext({...input,resources});
+  const plan=mockReviewedPlan(context);
+  expect(()=>validateReviewedPlan(context,plan)).not.toThrow();
+  plan.tasks[0].resourceIds=['invented'];
+  expect(()=>validateReviewedPlan(context,plan)).toThrow();
+ });
  it('RR-01 accepts exact work, shared setup once, practice and four occupied weeks',()=>{
   const {context,proposal}=setup();const result=validateReviewedPlan(context,proposal);
   expect(context.totalMinutes).toBe(450);expect(result.tasks).toHaveLength(9);
@@ -59,7 +78,7 @@ describe('R06/R07/T07 reviewed proposal validation; synthetic, no provider/DB',(
   input.inventory=input.library.capabilities.map(item=>({canonicalSkillId:item.id,label:item.label,meaningVersion:item.meaningVersion}));
   expect(()=>reviewedPlanContext(input)).toThrow(/No missing/);
   input.inventory[0].meaningVersion='old';expect(()=>reviewedPlanContext(input)).toThrow(/Confirm changed/);
-  input.inventory=[];input.resources=[];expect(()=>reviewedPlanContext(input)).toThrow(/Research resources/);
+  input.inventory=[];input.resources=[];expect(()=>reviewedPlanContext(input)).toThrow(/Catalogue references/);
  });
  it('RR-06 retains 24 valid tasks across all twelve weeks',()=>{
   const {context,proposal}=setup(12,false);proposal.tasks=context.activities.map((item,index)=>({...item.task,week:Math.floor(index/2)+1}));

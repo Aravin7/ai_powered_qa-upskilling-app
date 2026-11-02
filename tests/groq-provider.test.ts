@@ -258,6 +258,20 @@ describe('Groq adapter — LLM-only resource mode with intercepted HTTP', () => 
     expect(http).toHaveBeenCalledTimes(1);
   });
 
+  it.each([400, 401, 429, 500])('logs only operation and HTTP status for rejected roadmap request %i', async status => {
+    const log = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const http = vi.fn(async () => new Response('synthetic private response and credentials', { status }));
+      const library = syntheticReviewedLibrary(2);
+      const context = reviewedPlanContext({library, selection:{directionId:'qa',deferredCapabilityIds:[]},inventory:[],hoursPerWeek:6,resources:library.capabilities.map(item=>({topicId:item.id,documentationId:`${item.id}-doc`}))});
+      await expect(create(http, { planningApprovalReference: 'Synthetic planning test fixture' }).respond(
+        { kind: 'reviewed_roadmap', context }, new AbortController().signal,
+      )).rejects.toBeDefined();
+      expect(log).toHaveBeenCalledExactlyOnceWith('[groq-http-error]', { operation: 'reviewed_roadmap', status });
+      expect(http).toHaveBeenCalledTimes(1);
+    } finally { log.mockRestore(); }
+  });
+
   it.each([
     [{ choices: [{ finish_reason: 'content_filter', message: { content: null } }] }, 'PROVIDER_REFUSED'],
     [{ choices: [{ finish_reason: 'stop', message: { refusal: 'refused', content: null } }] }, 'PROVIDER_REFUSED'],

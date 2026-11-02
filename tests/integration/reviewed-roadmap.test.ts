@@ -11,6 +11,7 @@ import { catalogue } from '../../src/lib/catalogue';
 import { POLICY_VERSION } from '../../src/lib/domain';
 import { syntheticReviewedLibrary } from '../fixtures/reviewed-planning';
 import type { RequirementLibrary } from '../../src/lib/requirements';
+import { requirementContentDigest } from '../../src/lib/requirements';
 
 const url=process.env.TEST_DATABASE_URL;
 if(!url||!/^qa_pathways_/.test(new URL(url).pathname.slice(1))||!['localhost','127.0.0.1'].includes(new URL(url).hostname))throw new Error('Only an isolated local qa_pathways_* TEST_DATABASE_URL is permitted.');
@@ -23,7 +24,10 @@ beforeEach(async()=>{
  budgetId=`reviewed-plan-${crypto.randomUUID()}`;vi.stubEnv('AI_BUDGET_ID',budgetId);
  await first.fundingBudget.create({data:{id:budgetId,mode:'mock',currency:'MOCK',pricingVersion:'mock-v1',ceiling:100,expiresAt:new Date(Date.now()+3600000)}});
  await first.catalogueRevision.upsert({where:{id:'active'},create:{id:'active',version:catalogue.version},update:{}});
- library=syntheticReviewedLibrary(2);await registerRequirementSnapshot(first,library,'synthetic reviewed planning test');await activateRequirementSnapshot(first,library.version);
+ library=syntheticReviewedLibrary(2);
+ library.sources.push({id:'second-source',title:'Synthetic additional reference',url:'https://docs.example.org/second',checkedOn:new Date().toISOString().slice(0,10)});
+ library.capabilities[0].sourceIds.push('second-source');library.review!.contentDigest=requirementContentDigest(library);
+ await registerRequirementSnapshot(first,library,'synthetic reviewed planning test');await activateRequirementSnapshot(first,library.version);
  const email=`reviewed-plan-${crypto.randomUUID()}@example.invalid`;emailList.push(email);await first.invitation.create({data:{email}});
  const user=await admitGoogle(first,crypto.randomUUID(),email,'Synthetic Learner');claims={id:user.id,email,sessionVersion:0};
  await putProfile(first,claims,{currentRole:'Synthetic QA',yearsExperience:7,hoursPerWeek:5,expectedRevision:0});
@@ -51,16 +55,17 @@ async function seedResources(){
 }
 function provider(respond:AIProvider['respond']):AIProvider{return {model:'synthetic-controlled-provider',respond};}
 
-it('IT-RR01 R07/R08/R15: real resource operations then plan replacement preserve archived progress and reload frozen resources',async()=>{
+it('IT-RR01 R07/R08/R15: catalogue resources replace a plan and preserve archived progress',async()=>{
+ const earlier=await first.roadmap.create({data:{userId:claims.id,status:'archived',inputRevision:1,catalogueVersion:catalogue.version,tasks:{create:{position:0,week:1,title:'Older completed activity',activity:'Synthetic work',completionCriterion:'Done',kind:'practical',skillIds:[],resourceIds:[],estimatedMinutes:30,completed:true}}},include:{tasks:true}});
  const calls:ProviderInput[]=[];const spy=provider(async(input,signal)=>{calls.push(input);return mockProvider.respond(input,signal);});
- for(const topic of library.capabilities)await researchReviewedResources(first,claims,{operationKey:crypto.randomUUID(),expectedPlanningRevision:3,topicId:topic.id},spy);
- expect(await attempts()).toBe(4);
  const result=await generateRoadmap(first,claims,request(),spy);
- expect(result.code).toBe('MOCK_PLAN_SAVED');expect(await attempts()).toBe(5);expect(calls.map(call=>call.kind)).toEqual(['resource_research','resource_research','resource_research','resource_research','reviewed_roadmap']);
+ expect(result.code).toBe('MOCK_PLAN_SAVED');expect(await attempts()).toBe(1);expect(calls.map(call=>call.kind)).toEqual(['reviewed_roadmap']);
  expect(JSON.stringify(calls)).not.toContain(claims.email);expect(JSON.stringify(calls)).not.toContain(claims.id);
- const saved=(await getState(second,claims)).roadmap!;expect(saved.reviewed).toMatchObject({mode:'mock',libraryVersion:library.version});expect(saved.reviewed?.resources).toHaveLength(2);
+ const saved=(await getState(second,claims)).roadmap!;expect(saved.reviewed).toMatchObject({mode:'mock',libraryVersion:library.version});expect(saved.reviewed?.resources).toHaveLength(2);expect(saved.reviewed!.resources.every(topic=>topic.resources.length>=1&&topic.resources.every(resource=>resource.reviewStatus==='catalogue_reference'))).toBe(true);
+ expect(saved.reviewed!.resources.map(topic=>topic.resources.length)).toEqual([2,1]);
  expect(saved.tasks).toHaveLength(5);expect(saved.tasks.every(task=>!task.completed&&task.revision===0)).toBe(true);
  expect((await oldPlan()).status).toBe('archived');expect((await oldPlan()).tasks.every(task=>task.completed)).toBe(true);
+ expect(await second.roadmap.findUniqueOrThrow({where:{id:earlier.id},include:{tasks:true}})).toEqual(earlier);
  await patchTask(first,claims,saved.tasks[0].id,{completed:true,expectedTaskRevision:0});expect((await getState(second,claims)).roadmap!.tasks[0].completed).toBe(true);
  await saveReviewedDirection(first,claims,{version:library.version,directionId:null,deferredCapabilityIds:[],expectedPlanningRevision:3});
  expect((await getState(second,claims)).roadmap!.reviewed?.resources).toEqual(saved.reviewed!.resources);
@@ -72,10 +77,9 @@ it('IT-RR10 R11: sixth attempt across resource research and planning is denied a
  expect(spy.respond).not.toHaveBeenCalled();expect(await attempts()).toBe(5);expect((await first.fundingBudget.findUniqueOrThrow({where:{id:budgetId}})).reserved).toBe(5);
  expect((await getState(first,claims)).roadmap).toEqual(before);
 });
-it('IT-RR02 R03/R07: missing resources, missing consent and empty-inventory acknowledgment prevent dispatch',async()=>{
+it('IT-RR02 R03/R07: missing consent and empty-inventory acknowledgment prevent dispatch',async()=>{
  const spy=provider(vi.fn());const before=await oldPlan();
- await expect(generateRoadmap(first,claims,request(),spy)).rejects.toMatchObject({code:'RESOURCE_VERIFICATION_REQUIRED'});
- await seedResources();await expect(generateRoadmap(first,claims,{...request(),introductoryPlanAcknowledged:false},spy)).rejects.toMatchObject({code:'ACKNOWLEDGMENT_REQUIRED'});
+ await expect(generateRoadmap(first,claims,{...request(),introductoryPlanAcknowledged:false},spy)).rejects.toMatchObject({code:'ACKNOWLEDGMENT_REQUIRED'});
  await putConsent(first,claims,{purpose:'roadmap_generation',granted:false,policyVersion:POLICY_VERSION});
  await expect(generateRoadmap(first,claims,request(),spy)).rejects.toMatchObject({code:'CONSENT_REQUIRED'});
  expect(spy.respond).not.toHaveBeenCalled();expect(await attempts()).toBe(0);expect(await oldPlan()).toEqual(before);

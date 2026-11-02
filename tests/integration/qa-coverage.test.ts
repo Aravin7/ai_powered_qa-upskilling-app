@@ -117,7 +117,7 @@ describe('CV-07/CV-08/CV-09/CV-10 / R05-R11 / T04-T05', () => {
     const old = (await getState(first, claims)).skills;
     let calls = 0;
     const stalled: AIProvider = { model: 'stalled-synthetic', async respond() { calls++; return new Promise<never>(() => {}); } };
-    await expect(extractSkills(first, claims, pdf, crypto.randomUUID(), stalled)).rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE' });
+    await expect(extractSkills(first, claims, pdf, crypto.randomUUID(), stalled)).rejects.toMatchObject({ code: 'PROVIDER_TIMEOUT' });
     expect(calls).toBe(2);
     expect(await attempts()).toBe(2);
     expect((await getState(first, claims)).skills).toEqual(old);

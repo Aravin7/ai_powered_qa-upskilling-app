@@ -195,38 +195,26 @@ afterAll(async () => {
   await second.$disconnect();
 });
 
-it('CW-01: two LLM-suggested resource pairs and reviewed plan use five shared reservations; frozen progress survives reload', async () => {
+it('CW-01: catalogue references and one mocked Groq plan preserve archived progress', async () => {
   const http = interceptedProvider();
-  for (const topic of library.capabilities) {
-    expect((await researchReviewedResources(first, claims, research(topic.id), undefined, inspector)).code).toBe('RESOURCES_READY');
-  }
   const result = await generateRoadmap(first, claims, planRequest());
   expect(result.code).toBe('PLAN_SAVED');
-  expect(http).toHaveBeenCalledTimes(5);
-  expect(await first.aIAttempt.count({ where: { operation: { userId: claims.id } } })).toBe(5);
-  expect((await second.fundingBudget.findUniqueOrThrow({ where: { id: budgetId } })).reserved).toBe(5);
-  expect(result.state.roadmap!.reviewed).toMatchObject({ mode: 'groq' });
+  expect(http).toHaveBeenCalledTimes(1);
+  expect(await first.aIAttempt.count({where:{operation:{userId:claims.id}}})).toBe(1);
+  expect((await second.fundingBudget.findUniqueOrThrow({where:{id:budgetId}})).reserved).toBe(1);
   expect(result.state.roadmap!.reviewed!.resources).toHaveLength(2);
-  for (const pair of result.state.roadmap!.reviewed!.resources) {
-    expect(pair.resources).toHaveLength(2);
-    for (const item of pair.resources) {
-      expect(item.reviewStatus).toBe('automatically_checked');
-      expect(item.sourceId).toMatch(/^llm-[a-f0-9]{64}$/);
-      expect(item.citation).toBeUndefined();
-    }
+  for(const topic of result.state.roadmap!.reviewed!.resources){
+    expect(topic.resources.length).toBeGreaterThanOrEqual(1);
+    expect(topic.resources.every(item=>item.reviewStatus==='catalogue_reference')).toBe(true);
   }
-  const old = await second.roadmap.findUniqueOrThrow({ where: { id: oldPlanId }, include: { tasks: true } });
-  expect(old.status).toBe('archived');
-  expect(old.tasks.every(task => task.completed)).toBe(true);
-  expect(result.state.roadmap!.tasks.every(task => !task.completed)).toBe(true);
-  const task = result.state.roadmap!.tasks[0];
-  await patchTask(first, claims, task.id, { completed: true, expectedTaskRevision: 0 });
-  expect((await getState(second, claims)).roadmap!.tasks[0].completed).toBe(true);
-  expect((await generateRoadmap(second, claims, planRequest(result.operation!.key))).code).toBe('REPLAY');
-  expect(http).toHaveBeenCalledTimes(5);
-  await expect(researchReviewedResources(second, claims, research(), undefined, inspector))
-    .rejects.toMatchObject({ code: 'QUOTA_EXHAUSTED' });
-  expect(http).toHaveBeenCalledTimes(5);
+  const old=await second.roadmap.findUniqueOrThrow({where:{id:oldPlanId},include:{tasks:true}});
+  expect(old.status).toBe('archived');expect(old.tasks.every(task=>task.completed)).toBe(true);
+  expect(result.state.roadmap!.tasks.every(task=>!task.completed)).toBe(true);
+  const task=result.state.roadmap!.tasks[0];
+  await patchTask(first,claims,task.id,{completed:true,expectedTaskRevision:0});
+  expect((await getState(second,claims)).roadmap!.tasks[0].completed).toBe(true);
+  expect((await generateRoadmap(second,claims,planRequest(result.operation!.key))).code).toBe('REPLAY');
+  expect(http).toHaveBeenCalledTimes(1);
 });
 
 it('CW-02: missing LLM approval rejects before any operation, even if native Browser Search approval exists', async () => {

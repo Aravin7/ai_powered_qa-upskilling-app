@@ -21,11 +21,11 @@ const storedResourceSchema=z.object({
  id:z.string().min(1).max(80),sourceId:z.string().min(1).max(120),title:z.string().min(1).max(240),
  url:z.string().url().max(2048),publisher:z.string().min(1).max(160),
  kind:z.enum(['documentation','tutorial','course','video']),accessNote:z.string().min(1).max(400),
- checkedAt:z.string().datetime(),reviewStatus:z.enum(['synthetic_only','automatically_checked']),
+ checkedAt:z.string().datetime(),reviewStatus:z.enum(['synthetic_only','automatically_checked','catalogue_reference']),
  citation:nativeCitationSchema.optional(),
 }).strict();
 export const storedResourcePreviewSchema=resourceContextSchema.extend({
- resources:z.array(storedResourceSchema).length(2),professionalReview:z.null(),
+ resources:z.array(storedResourceSchema).min(1).max(10),professionalReview:z.null(),
  mode:z.enum(['mock','groq']),model:z.string().min(1).max(120),inputRevision:z.number().int().nonnegative(),
  libraryVersion:z.string().min(1).max(100),operationId:z.string().uuid(),
 }).strict();

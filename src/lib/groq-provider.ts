@@ -163,6 +163,8 @@ export function createGroqProvider({
                     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` }, body
                 });
             } catch { if (signal.aborted) throw signal.reason; throw new ProviderFailure('PROVIDER_CONNECTION_FAILED'); }
+            // Only bounded metadata is logged; provider response bodies and request data stay private.
+            if (!response.ok) console.warn('[groq-http-error]', { operation: input.kind, status: response.status });
             // Never expose echoed provider error bodies. Rate limits require a deliberate later retry.
             if (response.status === 429) throw new DomainError('PROVIDER_RATE_LIMIT', 'Groq rate limit reached. Wait before a deliberate retry; existing data is preserved.', 429);
             if (!response.ok) throw new ProviderFailure('PROVIDER_UNAVAILABLE', response.status >= 500, response.status);
