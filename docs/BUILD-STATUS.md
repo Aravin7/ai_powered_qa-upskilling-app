@@ -1,5 +1,25 @@
 # Build status — 22 October 2026 · IT6070
 
+## Reviewed roadmap v2 final local verification — 3 November 2026
+
+Typecheck passed; 282/282 unit tests passed including explicit injected task-field and no-practical-work checks. Production build passed. Full integration passed 135/135 using the dedicated disposable PostgreSQL cluster and intercepted provider HTTP; a separate prior-v1 saved-snapshot/completed-task read check also passed (1/1). Failed generation and atomic rollback checks preserve prior progress. The earlier 274-to-273 unit change reflected six replaced v1 output-mutation cases, four added Groq HTTP diagnostic cases and one v5 compact-contract case; nine explicit v2 injection/practical checks were subsequently added. PostgreSQL client emitted query-concurrency deprecation warnings. No live Groq request was made; live response compatibility remains unverified.
+
+## Compact reviewed roadmap output — 3 November 2026
+
+The reviewed roadmap provider now returns activity IDs and week assignments. The server reconstructs tasks from its reviewed context and validates complete coverage, dependency order, consecutive weeks and capacity before atomic activation. Live 200 then 400 json_validate_failed prompted this change; it does not prove why the provider rejected the earlier response. Typecheck passed; 273 mocked unit tests passed, including an intercepted real-v5 ten-activity case; 45 isolated integration tests passed across reviewed planning, Groq controls and connected workflows. No live provider request was made.
+
+## Groq roadmap HTTP diagnostics — 3 November 2026
+
+Added server warning with operation type and upstream HTTP status only for unsuccessful Groq HTTP responses. No request contents, provider body or credentials are logged. Intercepted 400/401/429/500 adapter cases and isolated PostgreSQL failure-preservation/quota checks passed; no live provider requests were made. The earlier live PROVIDER_UNAVAILABLE result did not retain its upstream status, so its cause remains unknown. Groq strict-schema documentation supports GPT-OSS 20B; the prior 502 does not itself identify a schema failure.
+
+## Catalogue roadmap integration — 3 November 2026
+
+Created and migrated a new disposable PostgreSQL cluster on localhost:55583, separate from the application database. Full integration: 130/130 passed across 10 files with synthetic data and intercepted provider HTTP. The reviewed-roadmap suite passed 16/16 again after adding a pre-existing archived-plan assertion and one-versus-two catalogue-reference coverage. The earlier integration run identified outdated test expectations; the updated cases retain consent, quotas, failures, ownership and stale-version checks. Typecheck, 274/274 unit tests and production build passed. The prior CV PDF timeout did not recur in the sequential unit runs; load is plausible but unproven. No live Groq call or application database change was made. Provider/account readiness and manual live behaviour remain unverified.
+
+## Catalogue resource transition — 2 November 2026 (in progress)
+
+Roadmap compilation now derives capability-linked references from the active requirement snapshot instead of requiring saved research pairs. References are labelled as catalogue references, not live-verified resources; previous plan snapshot formats remain readable. On 3 November, local typecheck passed; npm test passed 274/274 including a single-reference case, a six-hour synthetic schedule and parsing an older two-resource snapshot. The earlier PDF timeout did not recur in two sequential full-suite runs (9.34s and 7.99s total); load is a possible cause, not a proven diagnosis. The integration command was blocked before executing any tests because no isolated TEST_DATABASE_URL was supplied; no application database was modified. Stored progress and atomic replacement remain unverified for this change. No live Groq request was made. Earlier status entries describe the previous implementation.
+
 Timeout-change verification completed on 22 October: initial TypeScript check caught a duplicate import introduced during editing; removed it and a duplicate preflight call. Final TypeScript and whitespace checks Passed; targeted lint Passed. The focused mocked suite passed 83/83. No live request was made.
 
 ## Resource-search timeout allocation — 21 October 2026

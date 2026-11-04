@@ -1,5 +1,9 @@
 # Decision Log
 
+## 3 November 2026 — catalogue references
+
+The roadmap uses references linked to each capability in the active reviewed catalogue. These are catalogue references; they are not independently verified for the generated plan. Resource research is no longer a prerequisite. Older roadmap snapshots remain supported. Local database integration verification is pending.
+
 ## Observed native browser navigation — 21 October 2026
 
 The authorized final diagnostic identified `browser.open` as the rejected native action type (six total actions, two type failures). Accept that observed navigation type alongside the requested `browser_search`; do not accept arbitrary strings or infer provenance from model-written links. Keep source binding and count checks. Safe diagnostic details are bounded to schema field names, error codes and value-type categories; known action names may be reported, unknown values are redacted. The remaining live reservation was consumed; fix validation is mocked, not live acceptance.

@@ -5,7 +5,7 @@ import { assertRevision, DomainError } from './domain';
 import { activeRequirementSnapshot } from './requirement-snapshots';
 import { compileDirectionRequirements, directionSelectionSchema } from './requirements';
 import { compareSavedInventory } from './skill-reconciliation';
-import { currentReviewedResources } from './reviewed-resources';
+
 import { reviewedPlanContext } from './reviewed-roadmap';
 
 const selectionSchema=directionSelectionSchema.extend({
@@ -40,8 +40,14 @@ export async function selectedDirectionPlanning(tx:Tx,owner:string){
  const current=await active(tx);
  const profile=await tx.profile.findUniqueOrThrow({where:{userId:owner}});
  const topicIds=[...comparison.mandatoryGapIds,...comparison.optionalGapIds];
- const resources=currentReviewedResources(selected.resourcePreviews,{requirementSetId:comparison.requirementSetId,libraryVersion:comparison.libraryVersion,directionId:comparison.directionId,inputRevision:profile.planningRevision},topicIds);
- const context=reviewedPlanContext({library:current!.library,selection:{directionId:selected.directionId,deferredCapabilityIds:selected.deferredCapabilityIds},inventory:comparison.requirements.filter(item=>item.evidence==='confirmed_self_report').map(item=>({canonicalSkillId:item.id,label:item.label,meaningVersion:item.meaningVersion})),hoursPerWeek:profile.hoursPerWeek,resources:resources.map(pair=>({topicId:pair.topicId,documentationId:pair.resources[0].id,supportingId:pair.resources[1].id}))});
+ const resources=topicIds.map(topicId=>{
+  const topic=current!.library.capabilities.find(item=>item.id===topicId)!;
+  const references=topic.sourceIds.map(id=>current!.library.sources.find(source=>source.id===id)).filter(source=>source!==undefined);
+  if(!references.length)throw new DomainError('RESOURCE_VERIFICATION_REQUIRED','Catalogue references are missing for a learning topic.',409);
+  if(references.length>10)throw new DomainError('CONTENT_PLAN_LIMIT','Too many catalogue references for a learning topic.',409);
+  return {pathwayId:selected.directionId,pathwayTitle:selected.label,topicId,topicTitle:topic.label,requirementSetId:comparison.requirementSetId,libraryVersion:comparison.libraryVersion,inputRevision:profile.planningRevision,operationId:'00000000-0000-4000-8000-000000000000',professionalReview:null,mode:process.env.AI_MODE==='groq'?'groq' as const:'mock' as const,model:'catalogue',resources:references.map(source=>({id:source.id,sourceId:source.id,title:source.title,url:source.url,publisher:'Reviewed capability catalogue',kind:'documentation' as const,accessNote:'Catalogue reference; availability and relevance not independently checked.',checkedAt:`${source.checkedOn}T00:00:00.000Z`,reviewStatus:'catalogue_reference' as const}))};
+ });
+ const context=reviewedPlanContext({library:current!.library,selection:{directionId:selected.directionId,deferredCapabilityIds:selected.deferredCapabilityIds},inventory:comparison.requirements.filter(item=>item.evidence==='confirmed_self_report').map(item=>({canonicalSkillId:item.id,label:item.label,meaningVersion:item.meaningVersion})),hoursPerWeek:profile.hoursPerWeek,resources:resources.map(pair=>({topicId:pair.topicId,documentationId:pair.resources[0].id,...(pair.resources[1]?{supportingId:pair.resources[1].id}:{}),additionalIds:pair.resources.slice(2).map(item=>item.id)}))});
  return {context,resources,directionLabel:selected.label};
 }
 

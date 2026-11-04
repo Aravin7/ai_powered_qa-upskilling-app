@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { db } from '../src/lib/db';
 import { catalogue } from '../src/lib/catalogue';
-import { configurationVersion, groqConfigurationSchema, workflowApprovalSchema, GROQ_MODEL, GROQ_NOTICE } from '../src/lib/ai-execution';
+import { configurationVersion, groqConfigurationSchema, workflowApprovalSchema, llmWorkflowApprovalSchema, GROQ_MODEL, GROQ_NOTICE } from '../src/lib/ai-execution';
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 if(process.env.NODE_ENV==='production')throw new Error('Groq assignment demo is local only.');
@@ -9,7 +9,12 @@ const budgetId=process.env.AI_BUDGET_ID;
 if(!budgetId)throw new Error('Set AI_BUDGET_ID=local-groq-demo-v1.');
 const client=db();
 const workflowIndex=process.argv.indexOf('--workflow-config');
-const workflow=workflowIndex<0?undefined:z.object({privacyNotice:z.string().trim().min(40).max(3000),workflow:workflowApprovalSchema}).strict().parse(JSON.parse(readFileSync(process.argv[workflowIndex+1]??'', 'utf8')));
+// An approval file must name exactly one mode; installing this script enables neither.
+const workflowFileSchema=z.union([
+ z.object({privacyNotice:z.string().trim().min(40).max(3000),workflow:workflowApprovalSchema}).strict(),
+ z.object({privacyNotice:z.string().trim().min(40).max(3000),llmWorkflow:llmWorkflowApprovalSchema}).strict(),
+]);
+const workflow=workflowIndex<0?undefined:workflowFileSchema.parse(JSON.parse(readFileSync(process.argv[workflowIndex+1]??'', 'utf8')));
 try{
  if(process.argv[2]==='--revoke'){
   await client.fundingBudget.update({where:{id:budgetId},data:{enabled:false}});
@@ -32,6 +37,6 @@ try{
    await tx.catalogueRevision.upsert({where:{id:'active'},update:{},create:{id:'active',version:catalogue.version,revision:1}});
   });
   console.log('Local Groq allowance configured: at most 20 attempts over seven days, five/user/hour. No API request made; existing counters preserved.');
-  if(workflow)console.log('Connected workflow approval recorded without resetting counters or expiry. Renew consent under the changed notice before processing.');
+  if(workflow)console.log('Workflow approval metadata recorded without resetting counters or expiry. Renew consent under the changed notice before processing.');
  }
 }finally{await client.$disconnect();}

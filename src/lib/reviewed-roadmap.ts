@@ -1,9 +1,9 @@
-import type { z } from 'zod';
+import { z } from 'zod';
 import { DomainError, planSchema } from './domain';
-import { roadmapOutputSchema } from './ai-output';
+import { infeasibleSchema } from './ai-output';
 import { compareDirectionRequirements, directionWorkload, type RequirementLibrary } from './requirements';
 
-export type ReviewedResourcePair={topicId:string;documentationId:string;supportingId:string};
+export type ReviewedResourcePair={topicId:string;documentationId:string;supportingId?:string;additionalIds?:string[]};
 type Plan=z.infer<typeof planSchema>;
 type Task=Omit<Plan['tasks'][number],'week'>;
 export type ReviewedActivity={id:string;dependencies:string[];task:Task};
@@ -23,14 +23,15 @@ export function reviewedPlanContext(input:{library:RequirementLibrary;selection:
  const workload=directionWorkload(library,selection,comparison.strengthIds,now);
  const pairs=new Map<string,ReviewedResourcePair>();
  for(const pair of resources){
-  if(pairs.has(pair.topicId)||!gaps.some(item=>item.id===pair.topicId)||!pair.documentationId||!pair.supportingId||pair.documentationId===pair.supportingId)
-   throw new DomainError('RESOURCE_VERIFICATION_REQUIRED','Each learning topic needs a distinct documentation and supporting resource pair.',409);
+  const ids=[pair.documentationId,...(pair.supportingId?[pair.supportingId]:[]),...(pair.additionalIds??[])];
+  if(pairs.has(pair.topicId)||!gaps.some(item=>item.id===pair.topicId)||ids.some(id=>!id)||new Set(ids).size!==ids.length||ids.length>10)
+   throw new DomainError('RESOURCE_VERIFICATION_REQUIRED','Each learning topic needs distinct catalogue references.',409);
   pairs.set(pair.topicId,pair);
  }
  const activities:ReviewedActivity[]=[];const setups=new Set<string>();
  for(const gap of gaps){
-  const pair=pairs.get(gap.id);if(!pair)throw new DomainError('RESOURCE_VERIFICATION_REQUIRED','Research resources for every retained learning topic before generating a plan.',409);
-  const resourceIds=[pair.documentationId,pair.supportingId];const effort=gap.effort!;
+  const pair=pairs.get(gap.id);if(!pair)throw new DomainError('RESOURCE_VERIFICATION_REQUIRED','Catalogue references are missing for a retained learning topic.',409);
+  const resourceIds=[pair.documentationId,...(pair.supportingId?[pair.supportingId]:[]),...(pair.additionalIds??[])];const effort=gap.effort!;
   const prerequisites=gap.prerequisites.filter(id=>!comparison.strengthIds.includes(id)).map(id=>`${id}:practice`);
   const setup=effort.sharedSetup;
   if(setup&&!setups.has(setup.id)){
@@ -38,7 +39,7 @@ export function reviewedPlanContext(input:{library:RequirementLibrary;selection:
    setups.add(setup.id);
   }
   const dependencies=[...prerequisites,...(setup?[`setup:${setup.id}`]:[])];
-  if(effort.readingMinutes>0)activities.push({id:`${gap.id}:read`,dependencies,task:{kind:'learning',title:`Study ${gap.label}`,activity:`Read the documentation and supporting material for ${gap.label}.`,completionCriterion:`Explain the included scope and starting knowledge for ${gap.label}.`,skillIds:[gap.id],resourceIds,estimatedMinutes:effort.readingMinutes}});
+  if(effort.readingMinutes>0)activities.push({id:`${gap.id}:read`,dependencies,task:{kind:'learning',title:`Study ${gap.label}`,activity:`Review the catalogue references for ${gap.label}.`,completionCriterion:`Explain the included scope and starting knowledge for ${gap.label}.`,skillIds:[gap.id],resourceIds,estimatedMinutes:effort.readingMinutes}});
   activities.push({id:`${gap.id}:practice`,dependencies:[...dependencies,...(effort.readingMinutes>0?[`${gap.id}:read`]:[])],task:{kind:'practical',title:`Practise ${gap.label}`,activity:gap.activity,completionCriterion:gap.outcome,skillIds:[gap.id],resourceIds:effort.readingMinutes>0?[]:resourceIds,estimatedMinutes:effort.practiceMinutes+effort.reviewMinutes+effort.troubleshootingMinutes}});
  }
  // Validate content against the same bounded contract as provider proposals.
@@ -47,9 +48,9 @@ export function reviewedPlanContext(input:{library:RequirementLibrary;selection:
  return {requirementSetId:comparison.requirementSetId,libraryVersion:comparison.libraryVersion,contentDigest:comparison.contentDigest,directionId:comparison.directionId,hoursPerWeek:input.hoursPerWeek,confirmedSkillIds:comparison.strengthIds,deferredSkillIds:comparison.deferredCapabilityIds,activities,totalMinutes:workload.totalMinutes};
 }
 
-function taskIdentity(task:Task){return JSON.stringify([task.kind,task.title,task.activity,task.completionCriterion,task.skillIds,task.resourceIds,task.estimatedMinutes]);}
+const scheduleSchema=z.object({outcome:z.literal('plan'),reason:z.null(),constraintCode:z.null(),deferredSkillIds:z.array(z.string()).max(100),tasks:z.array(z.object({activityId:z.string().min(1).max(200),week:z.number().int().min(1).max(12)}).strict()).min(1).max(60)}).strict();
 export function validateReviewedPlan(context:ReviewedPlanContext,output:unknown):Plan{
- const proposal=roadmapOutputSchema.parse(output);
+ const proposal=z.union([scheduleSchema,infeasibleSchema]).parse(output);
  if(proposal.outcome==='infeasible'){
   if(proposal.constraintCode==='capacity'&&(context.totalMinutes>context.hoursPerWeek*60*12||context.activities.some(item=>item.task.estimatedMinutes>context.hoursPerWeek*60)))throw new DomainError('CAPACITY','Reviewed work exceeds weekly or twelve-week capacity. The existing plan is preserved.',422);
   if(proposal.constraintCode==='duration_policy'&&context.activities.length<4)throw new DomainError('DURATION_POLICY','These reviewed activities cannot occupy four weeks without filler. The existing plan is preserved.',422);
@@ -57,21 +58,23 @@ export function validateReviewedPlan(context:ReviewedPlanContext,output:unknown)
  }
  const sameIds=(a:string[],b:string[])=>a.length===b.length&&[...a].sort().every((id,index)=>id===[...b].sort()[index]);
  if(!sameIds(proposal.deferredSkillIds,context.deferredSkillIds))throw new DomainError('INVALID_PLAN','Deferrals must match the learner’s saved reviewed selection.',502);
- const expected=new Map(context.activities.map(item=>[taskIdentity(item.task),item]));
- if(expected.size!==context.activities.length)throw new DomainError('CONTENT_PLAN_LIMIT','Reviewed activity identities must be distinct.',409);
+ const expected=new Map(context.activities.map(item=>[item.id,item]));
+ if(expected.size!==context.activities.length)throw new DomainError('CONTENT_PLAN_LIMIT','Reviewed activity IDs must be distinct.',409);
  const seen=new Set<string>();const weekly=new Map<number,number>();let previousWeek=1;
- for(const task of proposal.tasks){
-  const activity=expected.get(taskIdentity(task));
-  if(!activity||seen.has(activity.id))throw new DomainError('INVALID_PLAN','Tasks must match reviewed activities, effort and resource bindings exactly once.',502);
+ const tasks:Plan['tasks']=[];
+ for(const entry of proposal.tasks){
+  const activity=expected.get(entry.activityId);
+  if(!activity||seen.has(entry.activityId))throw new DomainError('INVALID_PLAN','Every server-owned activity ID must occur exactly once.',502);
   if(activity.dependencies.some(id=>!seen.has(id)))throw new DomainError('INVALID_PLAN','Setup, reading and unconfirmed prerequisites must precede dependent work.',502);
-  if(task.week<previousWeek)throw new DomainError('INVALID_PLAN','Tasks must be ordered by relative week.',502);
-  previousWeek=task.week;seen.add(activity.id);weekly.set(task.week,(weekly.get(task.week)??0)+task.estimatedMinutes);
+  if(entry.week<previousWeek)throw new DomainError('INVALID_PLAN','Tasks must be ordered by relative week.',502);
+  previousWeek=entry.week;seen.add(activity.id);weekly.set(entry.week,(weekly.get(entry.week)??0)+activity.task.estimatedMinutes);
+  tasks.push({...activity.task,week:entry.week});
  }
- if(seen.size!==context.activities.length||!proposal.tasks.some(task=>task.kind==='practical'))throw new DomainError('INVALID_PLAN','All retained reviewed activities and practical work must be covered.',502);
+ if(seen.size!==context.activities.length||!tasks.some(task=>task.kind==='practical'))throw new DomainError('INVALID_PLAN','All retained reviewed activities and practical work must be covered.',502);
  const weeks=[...weekly.keys()];
  if(weeks.length<4||weeks.some((week,index)=>week!==index+1))throw new DomainError('INVALID_PLAN','Use four to twelve contiguous occupied weeks beginning at one.',502);
  if([...weekly.values()].some(minutes=>minutes>context.hoursPerWeek*60))throw new DomainError('INVALID_PLAN','A proposed week exceeds declared availability.',502);
- return proposal;
+ return planSchema.parse({outcome:'plan',reason:null,constraintCode:null,deferredSkillIds:proposal.deferredSkillIds,tasks});
 }
 
 /** Synthetic response only; never substituted for failed live model output. */
@@ -83,7 +86,7 @@ export function mockReviewedPlan(context:ReviewedPlanContext){
  const tasks=context.activities.map((item,index)=>{
   // Reserve enough remaining activities for the minimum four occupied weeks.
   if(minutes>0&&(minutes+item.task.estimatedMinutes>capacity||context.activities.length-index<=4-week)){week++;minutes=0;}
-  minutes+=item.task.estimatedMinutes;return {...item.task,week};
+  minutes+=item.task.estimatedMinutes;return {activityId:item.id,week};
  });
  if(week>12)return {outcome:'infeasible',reason:'The synthetic scheduler did not find a valid plan.',constraintCode:'undetermined',deferredSkillIds:[],tasks:[]};
  return {outcome:'plan',reason:null,constraintCode:null,deferredSkillIds:context.deferredSkillIds,tasks};

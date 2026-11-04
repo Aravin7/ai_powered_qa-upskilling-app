@@ -50,6 +50,7 @@ async function handler(req:Request,ctx:{params:Promise<{path:string[]}>}){
    const reviewed=await getReviewedGaps(client,claims);
    if(reviewed)return response('OK','Comparison of confirmed self-report; this does not certify competence.',reviewed);
    if(state.pathwayExploration?.selectedSuggestionId)throw new DomainError('CONTENT_REVIEW_REQUIRED','The selected provisional direction has no reviewed requirement set. Existing plan and progress are preserved.',409);
+   if(state.processing?.mode!=='mock')throw new DomainError('DIRECTION_REQUIRED','Select a reviewed QA direction in Explore directions before comparing learning needs.',409);
    data=compare(state.skills);
   }
   else if(req.method==='GET'&&path==='roadmap')data=state.roadmap;

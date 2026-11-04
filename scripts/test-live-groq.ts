@@ -5,8 +5,8 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { catalogue } from '../src/lib/catalogue';
 import { configurationVersion,groqConfigurationSchema,GROQ_MODEL,GROQ_NOTICE } from '../src/lib/ai-execution';
 import { DomainError } from '../src/lib/domain';
-import { admitGoogle,getState,patchTask,putConsent,putProfile,putSkills } from '../src/lib/store';
-import { extractSkills,generateRoadmap } from '../src/lib/ai-operations';
+import { admitGoogle,getState,putConsent,putProfile,putSkills } from '../src/lib/store';
+import { extractSkills } from '../src/lib/ai-operations';
 import { ProviderFailure } from '../src/lib/ai-provider';
 import { syntheticPdf } from '../tests/synthetic-pdf';
 
@@ -34,12 +34,9 @@ try{
  const confirmed=await putSkills(client,claims,{entries:extracted.candidates.map(candidate=>({canonicalSkillId:candidate.skillId,label:candidate.label,candidateReference:candidate.candidateReference})),removals:[],expectedRevision:1});
  assert.equal(confirmed.skills.filter(skill=>skill.source==='cv').length,3);
  console.log('LIVE GR-L1 PASS: real synthetic PDF produced three expected candidates; confirmed CV inventory persisted.');
- const saved=await generateRoadmap(client,claims,{operationKey:crypto.randomUUID(),expectedPlanningRevision:confirmed.profile.planningRevision,expectedCatalogueVersion:catalogue.version,introductoryPlanAcknowledged:false});
- assert.equal(saved.code,'PLAN_SAVED');assert.ok(saved.state.roadmap);const plan=saved.state.roadmap;
- await patchTask(client,claims,plan.tasks[0].id,{completed:true,expectedTaskRevision:0});
- const reloaded=await getState(client,claims);assert.equal(reloaded.roadmap?.id,plan.id);assert.equal(reloaded.roadmap?.tasks[0].completed,true);
- assert.equal((await client.roadmap.findUniqueOrThrow({where:{id:plan.id}})).modelVersion,GROQ_MODEL);
- console.log(`LIVE GR-L2 PASS: validated ${plan.tasks.length}-task roadmap saved; completion survived server reload.`);
+ const reloaded=await getState(client,claims);
+ assert.equal(reloaded.skills.filter(skill=>skill.source==='cv').length,3);
+ console.log('LIVE GR-L1 PASS: confirmed CV inventory survived server reload. Roadmap verification uses test-live-reviewed-workflow.ts separately.');
 }catch(error){
  console.error(error instanceof DomainError?`LIVE FAIL: ${error.code}: ${error.message}`:'LIVE FAIL: expected synthetic evidence or saved roadmap did not match.');
  if(error instanceof ProviderFailure&&error.providerStatus)console.error(`Provider HTTP status: ${error.providerStatus}. No echoed error body is logged.`);
